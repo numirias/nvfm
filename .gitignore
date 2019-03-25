@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.coverage
+.cache/
+.report.json
+TODO
+NOTES
+.tox
+build/
+dist/
+.pytest_cache/
+rplugin.vim
+.coverage.*
