@@ -61,21 +61,11 @@ def parse_colors():
             # TODO
             continue
         pattern = pattern.lower()
-        # markup_parts = val.split(';')
-        # if len(markup_parts) == 3:
-        #     color_code = markup_parts[2]
-        # elif len(markup_parts) == 1:
-        #     logger.debug(('color not parsed', color))
-        #     continue
-        # else:
-        #     logger.debug(('color not parsed', color))
-        #     continue
-        color_code = val
 
         if pattern.startswith('*'):
-            ext_map[pattern[1:]] = color_code
-            continue
-        special_map[pattern] = color_code
+            ext_map[pattern[1:]] = val
+        else:
+            special_map[pattern] = val
     logger.debug(''.join(list('%s %s\n' % (k, v) for k, v in ext_map.items())))
     return ext_map, special_map
 
