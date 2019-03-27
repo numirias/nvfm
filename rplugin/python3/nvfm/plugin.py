@@ -104,17 +104,45 @@ class Panel:
         self._render_dir(focus_item)
 
     def _view_file(self):
+        # TODO Don't re-create new buffer for previously opened files
+        # TODO Better heuristics to detect binary files
         path = self.path
         st = path.stat()
         mode = stat.filemode(st.st_mode)
         size = st.st_size
+        try:
+            buf = self._plugin.buffer_map[path]
+        except KeyError:
+            buf = self._plugin._vim.request('nvim_create_buf', True, False)
+            self._plugin.buffer_map[path] = buf
+            logger.debug(('new buf', buf))
+            buf.request('nvim_buf_set_option', 'buftype', 'nowrite')
+            buf.request('nvim_buf_set_option', 'bufhidden', 'hide')
+            buf.name = 'preview' + str(path)
+            data, need_hexdump = self._read_file(path)
+            if need_hexdump:
+                columns = 8 if self._win.width < 68 else 16
+                data = hexdump(data[:HEXDUMP_LIMIT], columns=columns)
+                buf.request('nvim_buf_set_option', 'filetype', 'xxd')
+            lines = data.decode('utf-8').splitlines()
+            if size > PREVIEW_SIZE_LIMIT:
+                # TODO Better indicator for truncated file view
+                lines += ['...']
+            buf[:] = lines
+        win_set_buf(self._win, buf)
 
-        if size > PREVIEW_SIZE_LIMIT:
-            self._render_head(path)
-        else:
-            # TODO Get rid of vimscript
-            self._plugin._vim.call('ViewFile', str(path))
-        # self._vim.vars['statusline3'] = mode
+    def _read_file(self, path):
+        with open(path, 'rb') as f:
+            data = f.read(PREVIEW_SIZE_LIMIT)
+            try:
+                data.decode('utf-8')
+            except UnicodeDecodeError:
+                # This is not valid utf-8, so do a hexdump
+                need_hexdump = True
+            else:
+                need_hexdump = False
+                # No hexdump, so read up to preview size limit
+        return data, need_hexdump
 
     def _render_dir(self, focus_item):
         """Render current directory."""
@@ -174,36 +202,6 @@ class Panel:
         self._buf[:] = [msg]
         self._buf.add_highlight(hl, 0, 0, -1, src_id=-1)
 
-    def _render_head(self, path):
-        with open(path, 'rb') as f:
-            data = f.read(PREVIEW_SIZE_LIMIT)
-            try:
-                data.decode('utf-8')
-            except UnicodeDecodeError:
-                # This is not valid utf-8, so do a hexdump
-                need_hexdump = True
-            else:
-                need_hexdump = False
-                # No hexdump, so read up to preview size limit
-                # bytes += f.read(PREVIEW_SIZE_LIMIT - HEXDUMP_LIMIT)
-
-        if need_hexdump:
-            lines = hexdump(data[:HEXDUMP_LIMIT])
-        else:
-            lines = [x.decode('utf-8') for x in data.splitlines()]
-
-        filename = str(path) + '.preview'
-        num = self._vim.call('bufnr', filename)
-        if num == -1:
-            num = self._vim.call('bufnr', filename, 1)
-        win = self._vim.windows[2]
-        buf = self._vim.buffers[num]
-        win_set_buf(win, buf)
-
-        self._vim.call('ViewHexdump')
-        buf[:] = lines
-
-
 @pynvim.plugin
 class Plugin:
 
@@ -214,6 +212,8 @@ class Plugin:
         self._start_path = Path(os.environ.get('NVFM_START_PATH', '.'))
         self._panels = None
         self.focus_cache = {}
+        # Map of preview buffers
+        self.buffer_map = {}
 
     @pynvim.function('NvfmStartup', sync=True)
     def func_nvfm_startup(self, args):
@@ -253,7 +253,6 @@ class Plugin:
         left, main, right = self._panels
         main.save_focus()
         logger.debug(('enter', path))
-
         main.view(path)
         if main.path != Path('/'):
             left.view(path.parent, focus_item=path)
@@ -296,12 +295,6 @@ class Plugin:
         # Make sure the hl is reset at the end
         pathinfo += '%#TabLineFill#'
         self._vim.options['tabline'] = pathinfo
-
-    def _set_status(self, status):
-        self._vim.vars['statusline3'] = status
-        # TODO Recommended by vim docs to force update, but there should be a
-        # more performant way
-        self._vim.options['ro'] = self._vim.options['ro']
 
     def _update_status_main(self):
         p = self._panels[1]

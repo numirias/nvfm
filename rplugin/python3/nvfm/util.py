@@ -4,11 +4,11 @@ import os
 import re
 
 
-def hexdump(bytes):
+def hexdump(bytes, columns=16):
     from subprocess import run, PIPE
-    text = run('xxd', stdout=PIPE, stderr=PIPE, input=bytes)
-    lines = text.stdout.decode('utf-8').splitlines()
-    return lines
+    text = run(['xxd', '-c', str(columns)], stdout=PIPE, stderr=PIPE, input=bytes)
+    data = text.stdout
+    return data
 
 def convert_size(bytes):
     if not bytes:
