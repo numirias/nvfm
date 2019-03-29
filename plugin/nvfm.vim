@@ -49,13 +49,12 @@ let g:statusline3 = 'c'
 
 function FileMetaHl()
     call matchadd('FileMeta', '.\%<19c')
-
 endfunction
 
 function Startup()
     "Name first buffer
     file nvfm_left
-    setlocal buftype=nofile "right pane
+    setlocal cursorline buftype=nofile "right pane
     let num = bufnr('nvfm_main', 1)
     exe 'vertical sbuffer' .  num
     let num = bufnr('nvfm_right', 1)
@@ -74,23 +73,6 @@ endfunction
 au VimEnter * call Startup()
 
 au VimResized * wincmd =
-
-
-function ViewFile(filename)
-    exec 3 "wincmd w"
-    exec "view! " . a:filename
-    wincmd p
-endfunction
-
-function ViewHexdump()
-    exec 3 "wincmd w"
-    "Otherwise, vim wants to to save the file before closing the buffer
-    setlocal buftype=nofile
-    "Display unprintable characters as <00> instead of ^C
-    setlocal display=uhex
-    setlocal syntax=xxd
-    wincmd p
-endfunction
 
 
 nnoremap <silent>e :call ViewFile()<CR>
