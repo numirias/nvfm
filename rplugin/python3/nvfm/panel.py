@@ -1,6 +1,8 @@
+from stat import (S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISLNK, S_ISREG,
+                  S_ISSOCK)
+
 from .util import logger, stat_path
-from .view import FileView, DirectoryView, MessageView
-from stat import S_ISDIR, S_ISREG, S_ISLNK, S_ISCHR, S_ISBLK, S_ISFIFO, S_ISSOCK
+from .view import DirectoryView, FileView, MessageView
 
 
 def win_set_buf(win, buf):

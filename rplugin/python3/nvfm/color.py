@@ -1,6 +1,7 @@
 import os
 import stat
-from stat import S_ISREG, S_ISLNK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISBLK, S_ISSOCK, S_IXUSR
+from stat import (S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISLNK, S_ISREG,
+                  S_ISSOCK, S_IXUSR)
 
 from .util import logger, stat_path
 
@@ -148,4 +149,3 @@ class ColorManager:
                 return None
         hl_group = 'color' + ansi_color.replace(';', '_')
         return hl_group
-

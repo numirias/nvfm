@@ -36,8 +36,8 @@ hi StatusLineNC    ctermfg=white ctermbg=236 cterm=none
 hi FileMeta ctermfg=246
 
 noremap <silent>q :qall!<CR>
-noremap <silent>l :call NvfmEnter(line('.'))<CR>
-noremap <silent><CR> :call NvfmEnter(line('.'))<CR>
+noremap <silent>l :call NvfmEnter()<CR>
+noremap <silent><CR> :call NvfmEnter()<CR>
 noremap <silent>h :call NvfmEnter('..')<CR>
 noremap <silent>~ :call NvfmEnter($HOME)<CR>
 

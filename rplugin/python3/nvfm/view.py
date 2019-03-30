@@ -2,8 +2,7 @@ import os
 import stat
 from stat import S_ISDIR, S_ISLNK
 
-from .util import logger, hexdump, convert_size, list_files, stat_path
-
+from .util import convert_size, hexdump, list_files, logger, stat_path
 
 # Files above this size will be truncated before preview
 PREVIEW_SIZE_LIMIT = 100_000

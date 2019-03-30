@@ -1,14 +1,16 @@
+# TODO Wrap Path for static stat etc
 import getpass
 import os
-# TODO Wrap Path for static stat etc
 from pathlib import Path
 import platform
+from stat import S_ISDIR
 
 import pynvim
 
-from .util import logger, hexdump, convert_size, natural_sort_key, list_files
 from .color import ColorManager
-from .panel import Panel, DirectoryView, FileView
+from .panel import DirectoryView, FileView, Panel
+from .util import (convert_size, hexdump, list_files, logger, natural_sort_key,
+                   stat_path)
 
 HOST = platform.node()
 USER = getpass.getuser()
@@ -21,7 +23,7 @@ class Plugin:
         self._vim = vim
         self._color_manager = ColorManager(vim)
         # TODO Doesn't work
-        self._start_path = Path(os.environ.get('NVFM_START_PATH', '.'))
+        self._start_path = Path(os.environ.get('NVFM_START_PATH', os.getcwd()))
         self._panels = None
         self.views = {}
 
@@ -32,34 +34,29 @@ class Plugin:
         self._color_manager.define_highlights()
 
         self._panels = [Panel(self, w, w.buffer) for w in self._vim.windows]
-
-        self._enter_dir(self._start_path)
+        self.go_to(self._start_path)
 
     @pynvim.function('NvfmEnter', sync=True)
     def func_nvfm_enter(self, args):
         """Enter the directory indicated by args[0]."""
-        what = args[0]
-        logger.debug(('enter', what))
-        if isinstance(what, int):
-            idx = args[0] - 1
-            try:
-                # TODO We can work with the saved focus_linenum instead
-                target = self._panels[1].view.children[idx]
-            except IndexError:
-                logger.warn('nothing to enter')
+        if len(args) == 0:
+            target = self._panels[1].view.focus_item
+            if target is None:
                 return
         else:
+            what = args[0]
             # '..' in paths isn't collapsed automatically
             if what == '..':
                 target = self._panels[1].view._path.parent
             else:
                 target = self._panels[1].view._path / what
-        if not target.is_dir():
-            # TODO Enter file?
+        stat_res, stat_error = stat_path(target)
+        if (stat_error is not None) or not S_ISDIR(stat_res.st_mode):
+            # TODO Handle regular file
             return
-        self._enter_dir(target)
+        self.go_to(target)
 
-    def _enter_dir(self, path):
+    def go_to(self, path):
         """The user enters `target`."""
         logger.debug(('enter', path))
         left, main, right = self._panels
