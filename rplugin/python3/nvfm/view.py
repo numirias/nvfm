@@ -71,6 +71,8 @@ class FileView(View):
             self.draw()
         except OSError as e:
             self.draw_message(str(e), 'Error')
+            return
+        self._detect_filetype()
 
     def draw(self):
         # TODO Better heuristics to detect binary files
@@ -91,6 +93,13 @@ class FileView(View):
             # TODO Better indicator for truncated file view
             lines += ['...']
         buf[:] = lines
+
+    def _detect_filetype(self):
+        cur = self._vim.current
+        buf_save = cur.buffer
+        cur.buffer = self._buf
+        self._vim.command('filetype detect')
+        cur.buffer = buf_save
 
     def _read_file(self, path):
         with open(path, 'rb') as f:
