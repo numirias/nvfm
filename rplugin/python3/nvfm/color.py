@@ -1,18 +1,8 @@
 import os
 import stat
+from stat import S_ISREG, S_ISLNK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISBLK, S_ISSOCK, S_IXUSR
 
-from .util import logger
-
-
-# Map file type character to identifier used in LS_COLORS
-FILETYPE_KEY_MAP = {
-    'l': 'ln',
-    'd': 'di',
-    's': 'so',
-    'p': 'pi',
-    'b': 'bd',
-    'c': 'cd',
-}
+from .util import logger, stat_path
 
 
 def ansi_to_vim_color(ansi):
@@ -91,7 +81,6 @@ class ColorManager:
 
     def __init__(self, vim):
         self._vim = vim
-
         self._ext_color_map, self._special_color_map = parse_colors()
 
     def define_highlights(self):
@@ -114,21 +103,39 @@ class ColorManager:
                 logger.debug(cmd)
                 self._vim.command(cmd)
 
-    def file_hl_group(self, file):
+    def file_hl_group(self, file, stat_res=None, stat_error=None):
         """Return the highlight group that `file` should be colored in."""
-        try:
-            modeline = stat.filemode(file.lstat().st_mode)
-        except FileNotFoundError:
-            # TODO Doesn't work for e.g. orphaned links
+        if stat_error is not None:
             return 'Error'
-        filechar = modeline[0]
-        # logger.debug(('MODE', filechar, self._special_color_map))
-        if filechar != '-':  # Not a regular file
-            if filechar == 'l' and self._special_color_map['ln'] == 'target':
-                return self.file_hl_group(file.resolve())
+        if stat_res is None:
+            return self.file_hl_group(file, *stat_path(file))
+        mode = stat_res.st_mode
+        if not S_ISREG(mode):  # Not a regular file
+            if S_ISLNK(mode):
+                if self._special_color_map['ln'] == 'target':
+                    # TODO
+                    # resolved = file.resolve()
+                    # if resolved == file:
+                    #     # Don't try to resolve another time
+                    #     # TODO
+                    #     raise Exception('recursion! %s' % resolved)
+                    return self.file_hl_group(file, *stat_path(file, lstat=False))
+                else:
+                    ansi_color = self._special_color_map['ln']
+            elif S_ISCHR(mode):
+                ansi_color = self._special_color_map['cd']
+            elif S_ISDIR(mode):
+                ansi_color = self._special_color_map['di']
+            elif S_ISFIFO(mode):
+                ansi_color = self._special_color_map['pi']
+            elif S_ISBLK(mode):
+                ansi_color = self._special_color_map['bd']
+            elif S_ISSOCK(mode):
+                ansi_color = self._special_color_map['so']
             else:
-                ansi_color = self._special_color_map[FILETYPE_KEY_MAP[filechar]]
-        elif 'x' in modeline:  # Executable
+                # TODO Does this happen?
+                return 'Error'
+        elif mode & S_IXUSR:  # Executable
             ansi_color = self._special_color_map['ex']
         else: # Regular file
             needle = file.name.lower()
@@ -139,6 +146,6 @@ class ColorManager:
             else:
                 # TODO Could not find a target color
                 return None
-        hl_group = ansi_color.replace(';', '_')
+        hl_group = 'color' + ansi_color.replace(';', '_')
         return hl_group
 

@@ -47,24 +47,11 @@ let g:statusline2 = 'b'
 let g:statusline3 = 'c'
 
 
-function FileMetaHl()
-    call matchadd('FileMeta', '.\%<19c')
-endfunction
-
 function Startup()
-    "Name first buffer
-    file nvfm_left
-    setlocal cursorline buftype=nofile "right pane
-    let num = bufnr('nvfm_main', 1)
-    exe 'vertical sbuffer' .  num
-    let num = bufnr('nvfm_right', 1)
-    exe 'vertical sbuffer' .  num
-    setlocal cursorline buftype=nofile "left pane
-    call FileMetaHl()
-    wincmd =
+    setlocal bufhidden=wipe
+    vsplit
+    vsplit
     exec 2 . "wincmd w"
-    setlocal cursorline buftype=nofile "mid pane
-    call FileMetaHl()
 
     call NvfmStartup()
     " setlocal nomodifiable

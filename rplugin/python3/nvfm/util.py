@@ -40,6 +40,15 @@ def list_files(path):
 
     return sorted_files
 
+def stat_path(path, lstat=True):
+    error, stat_res = None, None
+    f = path.lstat if lstat else path.stat
+    try:
+        stat_res = f()
+    except OSError as e:
+        error = e
+    return (stat_res, error)
+
 
 def make_logger():
     logger = logging.getLogger('nvfm')

@@ -1,7 +1,8 @@
 import os
 import stat
+from stat import S_ISDIR, S_ISLNK
 
-from .util import logger, hexdump, convert_size, natural_sort_key, list_files
+from .util import logger, hexdump, convert_size, list_files, stat_path
 
 
 # Files above this size will be truncated before preview
@@ -10,13 +11,17 @@ PREVIEW_SIZE_LIMIT = 100_000
 # Max number of bytes in a hexdump preview
 HEXDUMP_LIMIT = 16*256
 
+
 class View:
 
-    def __init__(self, plugin, path):
+    VIEW_PREFIX = 'nvfm_view:'
+
+    def __init__(self, plugin, path, **kwargs):
         self._plugin = plugin
         self._vim = plugin._vim
         self._path = path
         self._buf = self._make_buf(path)
+        self.event_setup(**kwargs)
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self._path)
@@ -27,21 +32,19 @@ class View:
             True, # listed
             False, # scratch
         )
-
         logger.debug(('new buf', buf))
         # TODO Do bulk request
         buf.request('nvim_buf_set_option', 'buftype', 'nowrite')
         buf.request('nvim_buf_set_option', 'bufhidden', 'hide')
         if path is not None:
-            buf.name = 'preview' + str(path)
+            buf.name = self.VIEW_PREFIX + str(path)
         return buf
 
-    def load_into(self, panel):
-        logger.debug(('load', self, 'into', panel))
-        if panel.buf == self._buf:
-            return
-        panel.buf = self._buf
-        panel._view = self
+    def event_loaded(self, panel):
+        """Event: The view has been loaded into `panel`."""
+
+    def event_setup(self, *args, **kwargs):
+        """Event: Do things to setup the buffer."""
 
     def draw_message(self, msg, hl_group='Normal'):
         buf = self._buf
@@ -51,22 +54,15 @@ class View:
 
 class MessageView(View):
 
-    def __init__(self, plugin, path, msg, hl_group):
-        super().__init__(plugin, path)
-        self._msg = msg
-        self._hl_group = hl_group
-        self.draw()
+    def event_setup(self, message, hl_group='Normal'):
+        self.draw_message(message, hl_group)
 
-    def draw(self):
-        buf = self._buf
-        buf[:] = [self._msg]
-        buf.add_highlight(self._hl_group, 0, 0, -1, src_id=-1)
-
+    def event_loaded(self, panel):
+        panel._win.request('nvim_win_set_option', 'wrap', True)
 
 class FileView(View):
 
-    def __init__(self, plugin, path):
-        super().__init__(plugin, path)
+    def event_setup(self):
         try:
             self.draw()
         except OSError as e:
@@ -117,12 +113,12 @@ class FileView(View):
 
 class DirectoryView(View):
 
-    def  __init__(self, plugin, path, focus=None):
-        super().__init__(plugin, path)
+    def event_setup(self, focus=None):
         self.focus_linenum = None
         try:
-            self.children = list_files(path)
+            self.children = list_files(self._path)
         except OSError as e:
+            # TODO Do we need to catch the OSError anymore?
             self.children = []
             self.draw_message(str(e), 'Error')
             return
@@ -131,24 +127,16 @@ class DirectoryView(View):
             return
         self.draw(focus)
 
-    def load_into(self, panel):
-        super().load_into(panel)
-
+    def event_loaded(self, panel):
         if self.children:
             # XXX Is this needed every time, or just initially?
             panel._win.request('nvim_win_set_option', 'cursorline', True)
 
-        # logger.debug(('prev cursor', panel._win.cursor))
-        # logger.debug(('load', panel, self._path, 'line', self.focus_linenum))
         if self.focus_linenum is not None:
-            # logger.debug(('restore focus', self, self._path, self.focus_linenum, panel))
             # Note: The updated cursorline position might not be immediately
             # visible if another event didn't trigger the draw (like a tabline
             # update)
             panel._win.cursor = [self.focus_linenum, 0]
-
-    # def unload(self):
-    #     pass
 
     def is_empty(self):
         return not self.children
@@ -174,41 +162,47 @@ class DirectoryView(View):
         highlights = []
         focus_linenum = None
         for linenum, item in enumerate(self.children):
-            line = self._format_line(item)
+            stat_res, stat_error = stat_path(item)
+            if stat_error is None:
+                line = self._format_line(item, stat_res)
+            else:
+                line = str(stat_error)
+            lines.append(line)
             # TODO Change focus_linenum to focus_item
             if item == focus_item:
                 focus_linenum = linenum
-            hl_group = self._plugin._color_manager.file_hl_group(item)
+            hl_group = self._plugin._color_manager.file_hl_group(item, stat_res, stat_error)
+
+            highlights.append((linenum, 'FileMeta', 0, 10))
             if hl_group is not None:
-                highlights.append((linenum, hl_group))
-            lines.append(line)
+                highlights.append((linenum, hl_group, 18, -1))
         self._buf[:] = lines
         self._apply_highlights(highlights)
         # Attempt to restore focus
         if focus_linenum is not None:
             self.focus_linenum = focus_linenum + 1
 
-    def _format_line(self, path):
-        try:
-            st = path.lstat()
-        except FileNotFoundError:
-            ... # TODO
-        # TODO FIle doesn't exist
+    def _format_line(self, path, stat_res):
         # TODO Orphaned symlink
-        mode = stat.filemode(st.st_mode)
-        size = convert_size(st.st_size)
+        mode = stat_res.st_mode
+        size = convert_size(stat_res.st_size)
         name = path.name
-        if path.is_dir():
+        if S_ISDIR(mode):
             name += '/'
-        if path.is_symlink():
-            name += ' -> ' + os.readlink(path)
-        return f'{mode} {size:>6} {name}'
+        if S_ISLNK(mode):
+            try:
+                target = os.readlink(path)
+            except OSError:
+                target = '?'
+            name += ' -> ' + target
+        return f'{stat.filemode(mode)} {size:>6} {name}'
 
     def _apply_highlights(self, highlights):
+        # TODO Apply highlights lazily
         buf = self._buf
-        for linenum, colorcode in highlights:
+        for linenum, hl_group, start, stop in highlights:
             # TODO We can skip colorNormal
             # TODO don't hardcode horizontal hl offset
             # TODO Bulk
-            logger.debug(('add_highlight', f'color{colorcode}', linenum))
-            buf.add_highlight(f'color{colorcode}', linenum, 18, -1, src_id=-1)
+            logger.debug(('add_highlight', hl_group, linenum))
+            buf.add_highlight(hl_group, linenum, start, stop, src_id=-1)
