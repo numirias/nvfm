@@ -34,6 +34,7 @@ hi StatusLine      ctermfg=white ctermbg=236 cterm=none
 hi StatusLineNC    ctermfg=white ctermbg=236 cterm=none
 
 hi FileMeta ctermfg=246
+hi NvfmMessage ctermfg=246
 
 noremap <silent>q :qall!<CR>
 noremap <silent>l :call NvfmEnter()<CR>

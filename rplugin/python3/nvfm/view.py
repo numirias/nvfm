@@ -20,7 +20,7 @@ class View:
         self._vim = plugin._vim
         self._path = path
         self._buf = self._make_buf(path)
-        self.event_setup(**kwargs)
+        self.setup(**kwargs)
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self._path)
@@ -39,13 +39,16 @@ class View:
             buf.name = self.VIEW_PREFIX + str(path)
         return buf
 
-    def event_loaded(self, panel):
+    def load_after(self, panel):
         """Event: The view has been loaded into `panel`."""
 
-    def event_setup(self, *args, **kwargs):
+    def setup(self, *args, **kwargs):
         """Event: Do things to setup the buffer."""
 
-    def draw_message(self, msg, hl_group='Normal'):
+    def draw_message(self, msg, hl_group=None):
+        if hl_group is None:
+            hl_group = 'NvfmMessage'
+        logger.debug(repr(hl_group))
         buf = self._buf
         buf[:] = [msg]
         buf.add_highlight(hl_group, 0, 0, -1, src_id=-1)
@@ -53,15 +56,16 @@ class View:
 
 class MessageView(View):
 
-    def event_setup(self, message, hl_group='Normal'):
+    def setup(self, message, hl_group=None):
         self.draw_message(message, hl_group)
 
-    def event_loaded(self, panel):
+    def load_after(self, panel):
         panel._win.request('nvim_win_set_option', 'wrap', True)
+
 
 class FileView(View):
 
-    def event_setup(self):
+    def setup(self):
         try:
             self.draw()
         except OSError as e:
@@ -112,7 +116,7 @@ class FileView(View):
 
 class DirectoryView(View):
 
-    def event_setup(self, focus=None):
+    def setup(self, focus=None):
         self.focus_linenum = None
         try:
             self.children = list_files(self._path)
@@ -122,11 +126,11 @@ class DirectoryView(View):
             self.draw_message(str(e), 'Error')
             return
         if not self.children:
-            self.draw_message('(directory empty)', 'Comment')
+            self.draw_message('(directory empty)')
             return
         self.draw(focus)
 
-    def event_loaded(self, panel):
+    def load_after(self, panel):
         if self.children:
             # XXX Is this needed every time, or just initially?
             panel._win.request('nvim_win_set_option', 'cursorline', True)
@@ -137,13 +141,16 @@ class DirectoryView(View):
             # update)
             panel._win.cursor = [self.focus_linenum, 0]
 
-    def is_empty(self):
+    @property
+    def empty(self):
         return not self.children
 
     def focus(self, linenum):
-        if linenum == self.focus_linenum:
-            return
+        # TODO Prevent this from firing multiple times
+        # if linenum == self.focus_linenum:
+        #     return
         self.focus_linenum = linenum
+        self._plugin._events.publish('focus_dir_item', self, self.focus_item)
 
     @property
     def focus_item(self):

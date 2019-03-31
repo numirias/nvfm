@@ -1,6 +1,7 @@
 import logging
 import math
 import os
+from pathlib import Path
 import re
 
 
@@ -28,17 +29,11 @@ def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
 
 def list_files(path):
     """List all files in path."""
-    files = list(path.iterdir())
-
-    filemap = {f.name:f for f in files}
-    import time
-    t = time.time()
-    # TODO faster sort
-    sorted_names = sorted(filemap, key=natural_sort_key)
-    sorted_files = [filemap[k] for k in sorted_names]
-    logger.debug(('sort', '%f' % (time.time() - t)))
-
-    return sorted_files
+    filenames = os.listdir(path)
+    # XXX Is this too slow?
+    sorted_names = sorted(filenames, key=natural_sort_key)
+    files = [path / Path(n) for n in sorted_names]
+    return files
 
 def stat_path(path, lstat=True):
     error, stat_res = None, None
@@ -48,7 +43,6 @@ def stat_path(path, lstat=True):
     except OSError as e:
         error = e
     return (stat_res, error)
-
 
 def make_logger():
     logger = logging.getLogger('nvfm')

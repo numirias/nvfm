@@ -1,19 +1,35 @@
-# TODO Wrap Path for static stat etc
 import getpass
 import os
 from pathlib import Path
 import platform
 from stat import S_ISDIR
+from collections import defaultdict
 
 import pynvim
 
 from .color import ColorManager
-from .panel import DirectoryView, FileView, Panel
+from .panel import LeftPanel, MainPanel, RightPanel
 from .util import (convert_size, hexdump, list_files, logger, natural_sort_key,
                    stat_path)
 
 HOST = platform.node()
 USER = getpass.getuser()
+
+
+class EventManager:
+
+    def __init__(self):
+        self._handlers = defaultdict(list)
+
+    def subscribe(self, name, handler):
+        logger.debug(('subscribe', handler, name))
+        self._handlers[name].append(handler)
+
+    def publish(self, name, *args, **kwargs):
+        logger.debug(('publish', len(self._handlers[name]), name, args, kwargs))
+        for handler in self._handlers[name]:
+            logger.debug(('fire', handler))
+            handler(*args, **kwargs)
 
 
 @pynvim.plugin
@@ -26,14 +42,19 @@ class Plugin:
         self._start_path = Path(os.environ.get('NVFM_START_PATH', os.getcwd()))
         self._panels = None
         self.views = {}
+        self._events = EventManager()
 
     @pynvim.function('NvfmStartup', sync=True)
     def func_nvfm_startup(self, args):
         logger.debug('nvfm startup')
         logger.debug([b.name for b in self._vim.buffers])
         self._color_manager.define_highlights()
-
-        self._panels = [Panel(self, w, w.buffer) for w in self._vim.windows]
+        wins = self._vim.windows
+        self._panels = [
+            LeftPanel(self, wins[0]),
+            MainPanel(self, wins[1]),
+            RightPanel(self, wins[2]),
+        ]
         self.go_to(self._start_path)
 
     @pynvim.function('NvfmEnter', sync=True)
@@ -50,7 +71,7 @@ class Plugin:
                 target = self._panels[1].view._path.parent
             else:
                 target = self._panels[1].view._path / what
-        stat_res, stat_error = stat_path(target)
+        stat_res, stat_error = stat_path(target, lstat=False)
         if (stat_error is not None) or not S_ISDIR(stat_res.st_mode):
             # TODO Handle regular file
             return
@@ -61,13 +82,6 @@ class Plugin:
         logger.debug(('enter', path))
         left, main, right = self._panels
         main.show_item(path)
-        if path != Path('/'):
-            left.show_item(path.parent, focus_item=path)
-        else:
-            left.show_item(None)
-        if main.view.is_empty():
-            right.show_item(None)
-
         self.focus_changed()
         logger.error('no directory entered!')
 
@@ -75,6 +89,7 @@ class Plugin:
     # TODO Maybe use eval=... argument
     @pynvim.autocmd('CursorMoved', sync=True)
     def focus_changed(self):
+        # TODO Error when moving around .dotfiles/LS_COLORS
         # TODO Restrict event to affected (main) window
         left, main, right = self._panels
         logger.debug(('focus changed', main.view._path))
@@ -88,9 +103,7 @@ class Plugin:
             # CursorMoved was triggered, but the cursor didn't move
             logger.debug('focus didn\'t change')
             # TODO return
-        # main.focus_linenum = cur_line
         main.view.focus(cur_line)
-        right.show_item(main.view.focus_item)
         self._update_tabline()
         self._update_status_main()
 
