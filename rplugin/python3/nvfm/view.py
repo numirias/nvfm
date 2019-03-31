@@ -82,6 +82,9 @@ class FileView(View):
         size = st.st_size
 
         data, need_hexdump = self._read_file(path)
+        if not data:
+            self.draw_message('(file empty)', 'NvfmMessage')
+            return
         if need_hexdump:
             # columns = 8 if self._win.width < 68 else 16
             columns = 16
