@@ -3,7 +3,8 @@
 HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 mkdir -p /tmp/nvfm
-export NVIM_RPLUGIN_MANIFEST=/tmp/nvfm/rplugin.vim
+export NVIM_RPLUGIN_MANIFEST=${NVIM_RPLUGIN_MANIFEST:=/tmp/nvfm/rplugin.vim}
 export NVFM_PLUGIN_PATH=$HERE/../
+echo "runtime path $NVFM_PLUGIN_PATH"
 
-nvim -u $HERE/../script/init.vim
+nvim $@ -u $HERE/../script/init.vim

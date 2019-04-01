@@ -58,7 +58,7 @@ def ansi_to_vim_color(ansi):
 
 def parse_colors():
     """Parse $LS_COLORS and return mappings of extensions to colors."""
-    var = os.environ.get('LS_COLORS')
+    var = os.environ.get('LS_COLORS', '')
     items = var.split(':')
     ext_map = {}
     special_map = {}
