@@ -7,7 +7,8 @@ set noswapfile
 set nowrap
 set nofoldenable
 " TODO Necessary?
-set viminfo=
+set viminfo="NONE"
+set shada="NONE"
 " Don't highlight matching brackets
 NoMatchParen
 
@@ -49,13 +50,13 @@ let g:statusline3 = 'c'
 
 
 function Startup()
+    "TODO Needed?
     setlocal bufhidden=wipe
     vsplit
     vsplit
     exec 2 . "wincmd w"
 
     call NvfmStartup()
-    " setlocal nomodifiable
 endfunction
 
 au VimEnter * call Startup()

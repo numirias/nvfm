@@ -1,5 +1,5 @@
+# -*- coding: future_fstrings -*-
 import os
-import stat
 from stat import (S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISLNK, S_ISREG,
                   S_ISSOCK, S_IXUSR)
 
@@ -27,9 +27,9 @@ def ansi_to_vim_color(ansi):
                 if part == '5':
                     bg = next(parts)
                 elif part == '2':
-                    r = next(parts)
-                    g = next(parts)
-                    b = next(parts)
+                    r = next(parts) # noqa
+                    g = next(parts) # noqa
+                    b = next(parts) # noqa
                     # TODO Handle rgb
             elif part == '0':
                 special = None
@@ -82,14 +82,12 @@ class ColorManager:
 
     def __init__(self, vim):
         self._vim = vim
-        self._ext_color_map, self._special_color_map = parse_colors()
+        self._colors, self._colors_special = parse_colors()
 
     def define_highlights(self):
         """Define highlight groups for file coloring."""
-        # for code in self._ext_color_map.values():
-        for ansi_code in dict.fromkeys([*self._ext_color_map.values(), *self._special_color_map.values()]):
-        # for code in range(255):
-            # cmd = f'hi color{code} ctermfg={code}'
+        for ansi_code in dict.fromkeys([*self._colors.values(),
+                                        *self._colors_special.values()]):
             code_safe = ansi_code.replace(';', '_')
             fg, bg, special = ansi_to_vim_color(ansi_code)
             args = ''
@@ -113,39 +111,42 @@ class ColorManager:
         mode = stat_res.st_mode
         if not S_ISREG(mode):  # Not a regular file
             if S_ISLNK(mode):
-                if self._special_color_map['ln'] == 'target':
+                if self._colors_special.get('ln') == 'target':
                     # TODO
                     # resolved = file.resolve()
                     # if resolved == file:
                     #     # Don't try to resolve another time
                     #     # TODO
                     #     raise Exception('recursion! %s' % resolved)
-                    return self.file_hl_group(file, *stat_path(file, lstat=False))
+                    return self.file_hl_group(file,
+                                              *stat_path(file, lstat=False))
                 else:
-                    ansi_color = self._special_color_map['ln']
+                    ansi_color = self._colors_special.get('ln')
             elif S_ISCHR(mode):
-                ansi_color = self._special_color_map['cd']
+                ansi_color = self._colors_special.get('cd')
             elif S_ISDIR(mode):
-                ansi_color = self._special_color_map['di']
+                ansi_color = self._colors_special.get('di')
             elif S_ISFIFO(mode):
-                ansi_color = self._special_color_map['pi']
+                ansi_color = self._colors_special.get('pi')
             elif S_ISBLK(mode):
-                ansi_color = self._special_color_map['bd']
+                ansi_color = self._colors_special.get('bd')
             elif S_ISSOCK(mode):
-                ansi_color = self._special_color_map['so']
+                ansi_color = self._colors_special.get('so')
             else:
                 # TODO Does this happen?
                 return 'Error'
         elif mode & S_IXUSR:  # Executable
-            ansi_color = self._special_color_map['ex']
+            ansi_color = self._colors_special.get('ex')
         else: # Regular file
             needle = file.name.lower()
-            for pattern, colorcode in self._ext_color_map.items():
+            for pattern, colorcode in self._colors.items():
                 if needle.endswith(pattern):
                     ansi_color = colorcode
                     break
             else:
                 # TODO Could not find a target color
                 return None
+        if ansi_color is None:
+            return None
         hl_group = 'color' + ansi_color.replace(';', '_')
         return hl_group

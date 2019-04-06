@@ -1,0 +1,4 @@
+# TODO MANIFEST.in follows symlinks, so we prune to avoid recursion. But
+# actually we'd just want the literal symlink instead of installing duplicates.
+graft src/nvfm
+# prune src/nvfm/runtime/rplugin/python3/nvfm/runtime

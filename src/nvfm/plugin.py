@@ -1,16 +1,16 @@
+# -*- coding: future_fstrings -*-
+from collections import defaultdict
 import getpass
 import os
 from pathlib import Path
 import platform
 from stat import S_ISDIR
-from collections import defaultdict
 
 import pynvim
 
 from .color import ColorManager
 from .panel import LeftPanel, MainPanel, RightPanel
-from .util import (convert_size, hexdump, list_files, logger, natural_sort_key,
-                   stat_path)
+from .util import logger, stat_path
 
 HOST = platform.node()
 USER = getpass.getuser()
@@ -22,11 +22,11 @@ class EventManager:
         self._handlers = defaultdict(list)
 
     def subscribe(self, name, handler):
-        logger.debug(('subscribe', handler, name))
+        logger.debug(('sub', handler, name))
         self._handlers[name].append(handler)
 
     def publish(self, name, *args, **kwargs):
-        logger.debug(('publish', len(self._handlers[name]), name, args, kwargs))
+        logger.debug(('pub', len(self._handlers[name]), name, args, kwargs))
         for handler in self._handlers[name]:
             logger.debug(('fire', handler))
             handler(*args, **kwargs)
@@ -36,6 +36,7 @@ class EventManager:
 class Plugin:
 
     def __init__(self, vim):
+        logger.debug('plugin init')
         self._vim = vim
         self._color_manager = ColorManager(vim)
         # TODO Doesn't work
@@ -48,6 +49,7 @@ class Plugin:
     def func_nvfm_startup(self, args):
         logger.debug('nvfm startup')
         logger.debug([b.name for b in self._vim.buffers])
+        # TODO Do this in color manager init
         self._color_manager.define_highlights()
         wins = self._vim.windows
         self._panels = [
@@ -115,7 +117,7 @@ class Plugin:
         if path.parent.name:
             pathinfo += '/'
         if path.name:
-            pathinfo += f'%#TabLineCurrent#{path.name}%#TabLinePath#/'
+            pathinfo += f'%#TabLineCurrent#{path.name}/%#TabLinePath#'
         if selected:
             # TODO This fails for symlinks without permission
             selected_str = selected.name
@@ -132,4 +134,5 @@ class Plugin:
 
     def _update_status_main(self):
         p = self._panels[1].view
-        self._vim.vars['statusline2'] = '%d/%d' % (p.focus_linenum, len(p.children))
+        self._vim.vars['statusline2'] = \
+            '%d/%d' % (p.focus_linenum, len(p.children))

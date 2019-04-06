@@ -1,3 +1,4 @@
+# -*- coding: future_fstrings -*-
 import os
 import stat
 from stat import S_ISDIR, S_ISLNK
@@ -5,10 +6,10 @@ from stat import S_ISDIR, S_ISLNK
 from .util import convert_size, hexdump, list_files, logger, stat_path
 
 # Files above this size will be truncated before preview
-PREVIEW_SIZE_LIMIT = 100_000
+PREVIEW_SIZE_LIMIT = 10**5
 
 # Max number of bytes in a hexdump preview
-HEXDUMP_LIMIT = 16*256
+HEXDUMP_LIMIT = 16 * 256
 
 
 class View:
@@ -78,7 +79,6 @@ class FileView(View):
         buf = self._buf
         path = self._path
         st = path.stat()
-        mode = stat.filemode(st.st_mode)
         size = st.st_size
 
         data, need_hexdump = self._read_file(path)
@@ -104,7 +104,7 @@ class FileView(View):
         cur.buffer = buf_save
 
     def _read_file(self, path):
-        with open(path, 'rb') as f:
+        with open(str(path), 'rb') as f:
             data = f.read(PREVIEW_SIZE_LIMIT)
             try:
                 data.decode('utf-8')
@@ -180,7 +180,8 @@ class DirectoryView(View):
             # TODO Change focus_linenum to focus_item
             if item == focus_item:
                 focus_linenum = linenum
-            hl_group = self._plugin._color_manager.file_hl_group(item, stat_res, stat_error)
+            hl_group = self._plugin._color_manager.file_hl_group(
+                item, stat_res, stat_error)
 
             highlights.append((linenum, 'FileMeta', 0, 10))
             if hl_group is not None:
@@ -200,7 +201,7 @@ class DirectoryView(View):
             name += '/'
         if S_ISLNK(mode):
             try:
-                target = os.readlink(path)
+                target = os.readlink(str(path))
             except OSError:
                 target = '?'
             name += ' -> ' + target

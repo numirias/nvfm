@@ -7,7 +7,10 @@ import re
 
 def hexdump(bytes, columns=16):
     from subprocess import run, PIPE
-    text = run(['xxd', '-c', str(columns)], stdout=PIPE, stderr=PIPE, input=bytes)
+    text = run(['xxd', '-c', str(columns)],
+               stdout=PIPE,
+               stderr=PIPE,
+               input=bytes)
     data = text.stdout
     return data
 
@@ -23,13 +26,13 @@ def convert_size(bytes):
     return '{n:.1f}{unit}'.format(n=num, unit=units[i])
 
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
-    # https://stackoverflow.com/questions/4836710/does-python-have-a-built-in-function-for-string-natural-sort
+    # https://stackoverflow.com/a/16090640
     return [int(text) if text.isdigit() else text.lower()
             for text in _nsre.split(s)]
 
 def list_files(path):
     """List all files in path."""
-    filenames = os.listdir(path)
+    filenames = os.listdir(str(path))
     # XXX Is this too slow?
     sorted_names = sorted(filenames, key=natural_sort_key)
     files = [path / Path(n) for n in sorted_names]
@@ -54,6 +57,9 @@ def make_logger():
         logger.addHandler(handler)
     logger.debug('nvfm logger started.')
     return logger
+
+def runtime_path():
+    return str(Path(__file__).absolute().parent / 'runtime')
 
 
 logger = make_logger()

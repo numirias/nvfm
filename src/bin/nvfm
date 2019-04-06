@@ -1,0 +1,10 @@
+#!/bin/bash
+
+HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+if [[ $NVFM_TEMP == 1 ]]; then
+    export NVFM_RUNTIME=$HERE/../nvfm/runtime/
+    nvim -u /dev/null --cmd 'let &rtp .= "," . $NVFM_RUNTIME' $@
+else
+    nvim -u /dev/null --cmd "py3 from nvfm.util import runtime_path" --cmd "let &rtp .= ',' . py3eval('runtime_path()')" $@
+fi

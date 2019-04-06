@@ -1,6 +1,7 @@
+# -*- coding: future_fstrings -*-
+
 from pathlib import Path
-from stat import (S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISLNK, S_ISREG,
-                  S_ISSOCK)
+from stat import S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISREG, S_ISSOCK
 
 from .util import logger, stat_path
 from .view import DirectoryView, FileView, MessageView
@@ -21,6 +22,7 @@ def mode_to_type_str(mode):
         msg = 'socket'
     else:
         msg = 'unknown file type'
+    return msg
 
 
 class Panel:
