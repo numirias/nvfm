@@ -31,6 +31,7 @@ def ansi_to_vim_color(ansi):
                     g = next(parts) # noqa
                     b = next(parts) # noqa
                     # TODO Handle rgb
+                    ... (r, g, b)
             elif part == '0':
                 special = None
             elif part == '1':
@@ -50,7 +51,6 @@ def ansi_to_vim_color(ansi):
                 pass
             else:
                 logger.error(('SKIP', part))
-                pass
             # TODO Handle codes 30-37, 40-47, 90-97, 100-107
     except StopIteration:
         return (fg, bg, special)

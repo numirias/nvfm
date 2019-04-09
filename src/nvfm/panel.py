@@ -7,10 +7,6 @@ from .util import logger, stat_path
 from .view import DirectoryView, FileView, MessageView
 
 
-def win_set_buf(win, buf):
-    return win.request('nvim_win_set_buf', buf)
-
-
 def mode_to_type_str(mode):
     if S_ISCHR(mode):
         msg = 'character special device file'
@@ -31,12 +27,12 @@ class Panel:
 
     def __init__(self, plugin, win):
         self._plugin = plugin
-        self._win = win
+        self.win = win
         # TODO Do we need to init with a buffer?
         self._view = None
 
     def __repr__(self):
-        return 'Panel(win=%s)' % self._win
+        return 'Panel(win=%s)' % self.win
 
     @property
     def view(self):
@@ -49,9 +45,9 @@ class Panel:
             # TODO Does this happen?
             return
         self._view = view
-        win_set_buf(self._win, view._buf)
-        view.load_after(self)
-        self._plugin._events.publish('view_loaded', self, self.view)
+        self.win.request('nvim_win_set_buf', view.buf)
+        view.loaded_into(self)
+        self._plugin.events.publish('view_loaded', self, self.view)
 
     def show_item(self, item, focus_item=None):
         """View `item` in the panel.
@@ -93,12 +89,12 @@ class LeftPanel(Panel):
 
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
-        plugin._events.subscribe('view_loaded', self.event_view_loaded)
+        plugin.events.subscribe('view_loaded', self.event_view_loaded)
 
     def event_view_loaded(self, panel, view):
         if not isinstance(panel, MainPanel):
             return
-        path = view._path
+        path = view.path
         if path != Path('/'):
             # TODO Dont carry focus_item as an argument
             self.show_item(path.parent, focus_item=path)
@@ -114,10 +110,12 @@ class RightPanel(Panel):
 
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
-        plugin._events.subscribe('focus_dir_item', self.event_focus_dir_item)
-        plugin._events.subscribe('view_loaded', self.event_view_loaded)
+        plugin.events.subscribe('focus_dir_item', self.event_focus_dir_item)
+        plugin.events.subscribe('view_loaded', self.event_view_loaded)
 
     def event_focus_dir_item(self, view, item):
+        # TODO
+        assert view
         # TODO Assert that the event was fired by a view in the main panel
         self.show_item(item)
 

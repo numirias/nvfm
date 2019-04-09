@@ -18,16 +18,16 @@ class View:
 
     def __init__(self, plugin, path, **kwargs):
         self._plugin = plugin
-        self._vim = plugin._vim
-        self._path = path
-        self._buf = self._make_buf(path)
+        self.path = path
+        self.buf = self._make_buf(path)
+        # TODO Refactor
         self.setup(**kwargs)
 
     def __repr__(self):
-        return '%s(%s)' % (self.__class__.__name__, self._path)
+        return '%s(%s)' % (self.__class__.__name__, self.path)
 
     def _make_buf(self, path):
-        buf = self._vim.request(
+        buf = self._plugin.vim.request(
             'nvim_create_buf',
             True, # listed
             False, # scratch
@@ -40,17 +40,14 @@ class View:
             buf.name = self.VIEW_PREFIX + str(path)
         return buf
 
-    def load_after(self, panel):
+    def loaded_into(self, panel):
         """Event: The view has been loaded into `panel`."""
-
-    def setup(self, *args, **kwargs):
-        """Event: Do things to setup the buffer."""
 
     def draw_message(self, msg, hl_group=None):
         if hl_group is None:
             hl_group = 'NvfmMessage'
         logger.debug(repr(hl_group))
-        buf = self._buf
+        buf = self.buf
         buf[:] = [msg]
         buf.add_highlight(hl_group, 0, 0, -1, src_id=-1)
 
@@ -60,8 +57,8 @@ class MessageView(View):
     def setup(self, message, hl_group=None):
         self.draw_message(message, hl_group)
 
-    def load_after(self, panel):
-        panel._win.request('nvim_win_set_option', 'wrap', True)
+    def loaded_into(self, panel):
+        panel.win.request('nvim_win_set_option', 'wrap', True)
 
 
 class FileView(View):
@@ -76,8 +73,8 @@ class FileView(View):
 
     def draw(self):
         # TODO Better heuristics to detect binary files
-        buf = self._buf
-        path = self._path
+        buf = self.buf
+        path = self.path
         st = path.stat()
         size = st.st_size
 
@@ -97,13 +94,14 @@ class FileView(View):
         buf[:] = lines
 
     def _detect_filetype(self):
-        cur = self._vim.current
+        cur = self._plugin.vim.current
         buf_save = cur.buffer
-        cur.buffer = self._buf
-        self._vim.command('filetype detect')
+        cur.buffer = self.buf
+        self._plugin.vim.command('filetype detect')
         cur.buffer = buf_save
 
-    def _read_file(self, path):
+    @staticmethod
+    def _read_file(path):
         with open(str(path), 'rb') as f:
             data = f.read(PREVIEW_SIZE_LIMIT)
             try:
@@ -119,10 +117,13 @@ class FileView(View):
 
 class DirectoryView(View):
 
+    focus_linenum = None
+    children = None
+
     def setup(self, focus=None):
         self.focus_linenum = None
         try:
-            self.children = list_files(self._path)
+            self.children = list_files(self.path)
         except OSError as e:
             # TODO Do we need to catch the OSError anymore?
             self.children = []
@@ -133,16 +134,16 @@ class DirectoryView(View):
             return
         self.draw(focus)
 
-    def load_after(self, panel):
+    def loaded_into(self, panel):
         if self.children:
             # XXX Is this needed every time, or just initially?
-            panel._win.request('nvim_win_set_option', 'cursorline', True)
+            panel.win.request('nvim_win_set_option', 'cursorline', True)
 
         if self.focus_linenum is not None:
             # Note: The updated cursorline position might not be immediately
             # visible if another event didn't trigger the draw (like a tabline
             # update)
-            panel._win.cursor = [self.focus_linenum, 0]
+            panel.win.cursor = [self.focus_linenum, 0]
 
     @property
     def empty(self):
@@ -153,7 +154,7 @@ class DirectoryView(View):
         # if linenum == self.focus_linenum:
         #     return
         self.focus_linenum = linenum
-        self._plugin._events.publish('focus_dir_item', self, self.focus_item)
+        self._plugin.events.publish('focus_dir_item', self, self.focus_item)
 
     @property
     def focus_item(self):
@@ -180,19 +181,20 @@ class DirectoryView(View):
             # TODO Change focus_linenum to focus_item
             if item == focus_item:
                 focus_linenum = linenum
-            hl_group = self._plugin._color_manager.file_hl_group(
+            hl_group = self._plugin.colors.file_hl_group(
                 item, stat_res, stat_error)
 
             highlights.append((linenum, 'FileMeta', 0, 10))
             if hl_group is not None:
                 highlights.append((linenum, hl_group, 18, -1))
-        self._buf[:] = lines
+        self.buf[:] = lines
         self._apply_highlights(highlights)
         # Attempt to restore focus
         if focus_linenum is not None:
             self.focus_linenum = focus_linenum + 1
 
-    def _format_line(self, path, stat_res):
+    @staticmethod
+    def _format_line(path, stat_res):
         # TODO Orphaned symlink
         mode = stat_res.st_mode
         size = convert_size(stat_res.st_size)
@@ -209,10 +211,9 @@ class DirectoryView(View):
 
     def _apply_highlights(self, highlights):
         # TODO Apply highlights lazily
-        buf = self._buf
         for linenum, hl_group, start, stop in highlights:
             # TODO We can skip colorNormal
             # TODO don't hardcode horizontal hl offset
             # TODO Bulk
             logger.debug(('add_highlight', hl_group, linenum))
-            buf.add_highlight(hl_group, linenum, start, stop, src_id=-1)
+            self.buf.add_highlight(hl_group, linenum, start, stop, src_id=-1)

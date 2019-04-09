@@ -1,8 +1,11 @@
 #!/bin/bash
 
+#TODO Shorten
 HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-if [[ $NVFM_TEMP == 1 ]]; then
+export NVIM_RPLUGIN_MANIFEST=/dev/null
+
+if [[ $NVFM_RUN_FROM_SOURCE == 1 ]]; then
     export NVFM_RUNTIME=$HERE/../nvfm/runtime/
     nvim -u /dev/null --cmd 'let &rtp .= "," . $NVFM_RUNTIME' $@
 else
