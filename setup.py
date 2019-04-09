@@ -44,12 +44,6 @@ setup(
         'Topic :: Desktop Environment :: File Managers',
         'Topic :: Text Editors',
     ],
-    # Include data files specified in MANIFEST.in
-    include_package_data=True,
-    # package_data ={
-    #     'nvfm': ['*']
-    # },
     package_dir={'nvfm':'src/nvfm'},
-    # data_files=[('nvfm', ['nvfm/runtime'])],
-    # package_data={'nvfm':['src/*']},
+    package_data={'nvfm':['runtime/plugin/*']},
 )
