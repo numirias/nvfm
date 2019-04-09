@@ -1,0 +1,11 @@
+[run]
+branch = True
+source = nvfm
+
+[paths]
+source =
+    src/nvfm
+    .tox/*/lib/python*/site-packages/nvfm
+
+[report]
+show_missing = True
