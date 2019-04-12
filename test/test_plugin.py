@@ -4,19 +4,30 @@ import re
 
 import pytest
 
+from nvfm.plugin import Plugin
+from nvfm.util import stat_path
+from nvfm.view import DirectoryView
+
+from .test_helpers import make_tree
+
 
 @pytest.fixture
 def tree(tmpdir_factory):
-    tree = Path(str(tmpdir_factory.mktemp('tree')))
-    base = (tree / 'base')
-    base.mkdir()
-    (base / 'aa').mkdir()
-    (base / 'aa' / 'aa_aa').mkdir()
-    (base / 'aa' / 'aa_aa' / 'aa_aa_f').touch()
-    (base / 'bb').write_text('bb_line_1\nbb_line_2')
-    (base / 'cc').mkdir()
-    (base / 'dd').touch()
-    return base
+    root = Path(str(tmpdir_factory.mktemp('tree')))
+    make_tree(root, '''
+    base/
+        aa/
+            aa_aa/
+                aa_aa_f
+        bb=bb_line_1\\nbb_line_2
+        cc/
+        dd
+        ee/
+            ff/
+            gg/
+            hh
+    ''')
+    return root / 'base'
 
 
 def test_startup(vim):
@@ -42,7 +53,7 @@ def test_panels(tree, vim_ctx):
         assert 'base' in lines[0]
 
         lines = mid.buffer[:]
-        assert len(lines) == 4
+        assert len(lines) == 5
         assert 'aa' in lines[0]
         assert 'bb' in lines[1]
         assert 'cc' in lines[2]
@@ -73,3 +84,19 @@ def test_navigation(tree, vim_ctx):
         assert 'base' in left.buffer[:][0]
         assert 'aa' in mid.buffer[:][0]
         assert 'aa_aa' in right.buffer[:][0]
+
+
+def test_format_line_extra(tree):
+    """If a dir has only one child, show the child in the dir view"""
+    path = tree / 'aa'
+    stat_res, stat_error = stat_path(path)
+    line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
+    assert 'aa/aa_aa/aa_aa_f' in line
+
+
+def test_format_line_extra2(tree):
+    """Display number of items in a directory"""
+    path = tree / 'ee'
+    stat_res, stat_error = stat_path(path)
+    line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
+    assert 'ee/ +3' in line

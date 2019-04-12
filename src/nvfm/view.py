@@ -174,19 +174,16 @@ class DirectoryView(View):
         for linenum, item in enumerate(self.children):
             stat_res, stat_error = stat_path(item)
             if stat_error is None:
-                line = self._format_line(item, stat_res)
+                hl_group = self._plugin.colors.file_hl_group(item, stat_res)
+                line, line_hls = self._format_line(item, stat_res, hl_group)
+                for hl in line_hls:
+                    highlights.append((linenum, *hl))
             else:
                 line = str(stat_error)
             lines.append(line)
             # TODO Change focus_linenum to focus_item
             if item == focus_item:
                 focus_linenum = linenum
-            hl_group = self._plugin.colors.file_hl_group(
-                item, stat_res, stat_error)
-
-            highlights.append((linenum, 'FileMeta', 0, 10))
-            if hl_group is not None:
-                highlights.append((linenum, hl_group, 18, -1))
         self.buf[:] = lines
         self._apply_highlights(highlights)
         # Attempt to restore focus
@@ -194,20 +191,56 @@ class DirectoryView(View):
             self.focus_linenum = focus_linenum + 1
 
     @staticmethod
-    def _format_line(path, stat_res):
+    def _format_line(path, stat_res, hl_group):
         # TODO Orphaned symlink
         mode = stat_res.st_mode
         size = convert_size(stat_res.st_size)
+        line = stat.filemode(mode) + ' ' + size.rjust(6) + ' '
+        hls = []
+        extra = None
         name = path.name
         if S_ISDIR(mode):
             name += '/'
-        if S_ISLNK(mode):
+            extra = DirectoryView._format_dir_extra(mode, path)
+        elif S_ISLNK(mode):
+            extra = DirectoryView._format_link_extra(path)
+        if hl_group is not None:
+            hls.append((hl_group, len(line), len(line) + len(name)))
+        line += name
+        if extra:
+            hls.append(('FileMeta', len(line), len(line) + len(extra)))
+            line += extra
+        hls.append(('FileMeta', 0, 10))
+        return line, hls
+
+    @staticmethod
+    def _format_dir_extra(mode, path):
+        extra = ''
+        for _ in range(4):
+            if not S_ISDIR(mode):
+                break
             try:
-                target = os.readlink(str(path))
+                children = os.listdir(str(path))
             except OSError:
-                target = '?'
-            name += ' -> ' + target
-        return f'{stat.filemode(mode)} {size:>6} {name}'
+                break
+            if len(children) != 1:
+                extra += f' +{len(children)}'
+                break
+            path = path / children[0]
+            try:
+                mode = path.stat().st_mode
+            except OSError:
+                break
+            extra += path.name + ('/' if S_ISDIR(mode) else '')
+        return extra
+
+    @staticmethod
+    def _format_link_extra(path):
+        try:
+            target = os.readlink(str(path))
+        except OSError:
+            target = '?'
+        return ' -> ' + target
 
     def _apply_highlights(self, highlights):
         # TODO Apply highlights lazily

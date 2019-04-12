@@ -34,7 +34,7 @@ hi SelectedEntry ctermfg=none ctermbg=236
 hi StatusLine      ctermfg=white ctermbg=236 cterm=none
 hi StatusLineNC    ctermfg=white ctermbg=236 cterm=none
 
-hi FileMeta ctermfg=246
+hi FileMeta ctermfg=243
 hi NvfmMessage ctermfg=246
 
 noremap <silent>q :qall!<CR>
