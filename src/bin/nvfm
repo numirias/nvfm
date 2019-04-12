@@ -1,13 +1,36 @@
 #!/bin/bash
 
+set -m
+
+return_to_nvfm() {
+    fg > /dev/null
+}
+
 #TODO Shorten
 HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-export NVIM_RPLUGIN_MANIFEST=/dev/null
+cmd_file=$(mktemp --suffix _nvfm)
+export NVFM_CMD_FILE=$cmd_file
 
 if [[ $NVFM_RUN_FROM_SOURCE == 1 ]]; then
-    export NVFM_RUNTIME=$HERE/../nvfm/runtime/
-    nvim -u /dev/null --cmd 'let &rtp .= "," . $NVFM_RUNTIME' $@
+    NVIM_RPLUGIN_MANIFEST=/dev/null \
+        NVFM_RUNTIME=$HERE/../nvfm/runtime/ \
+        nvim -u /dev/null --cmd 'let &rtp .= "," . $NVFM_RUNTIME' $@
 else
-    nvim -u /dev/null --cmd "py3 from nvfm.util import runtime_path" --cmd "let &rtp .= ',' . py3eval('runtime_path()')" $@
+    NVIM_RPLUGIN_MANIFEST=/dev/null \
+        nvim -u /dev/null --cmd "py3 from nvfm.util import runtime_path" \
+        --cmd "let &rtp .= ',' . py3eval('runtime_path()')" $@
 fi
+
+code=$?
+while true; do
+    if [[ $code == 148 ]]; then
+        source $cmd_file
+        return_to_nvfm
+        code=$?
+    else
+        break
+    fi
+done
+
+rm -f $cmd_file

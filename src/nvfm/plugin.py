@@ -77,7 +77,7 @@ class Plugin:
                 target = self._main_panel.view.path / what
         stat_res, stat_error = stat_path(target, lstat=False)
         if (stat_error is not None) or not S_ISDIR(stat_res.st_mode):
-            # TODO Handle regular file
+            self.launch(target)
             return
         self.go_to(target)
 
@@ -109,6 +109,12 @@ class Plugin:
         main.view.focus(cur_line)
         self._update_tabline()
         self._update_status_main()
+
+    def launch(self, target):
+        # TODO Proper application launcher implementation
+        with open(os.environ.get('NVFM_CMD_FILE'), 'w') as f:
+            f.write('$EDITOR ' + str(target))
+        self.vim.command('suspend!')
 
     def _update_tabline(self):
         """Update display of vim tabline."""
