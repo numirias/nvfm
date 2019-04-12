@@ -63,22 +63,29 @@ class Plugin:
 
     @pynvim.function('NvfmEnter', sync=True)
     def func_nvfm_enter(self, args):
-        """Enter the directory indicated by args[0]."""
-        if not args:
+        """Enter directory or view file.
+
+        Enter the directory indicated by args[0]. If args[0] is None, use
+        currently selected item. If args[1] is True, resolve symlinks.
+        """
+        # TODO Is there support for default args?
+        what = args[0] if args else None
+        resolve_symlinks = args[1] if len(args) >= 2 else False
+        if what is None:
             target = self._main_panel.view.focus_item
             if target is None:
                 return
-        else:
-            what = args[0]
+        elif what == '..':
             # '..' in paths isn't collapsed automatically
-            if what == '..':
-                target = self._main_panel.view.path.parent
-            else:
-                target = self._main_panel.view.path / what
+            target = self._main_panel.view.path.parent
+        else:
+            target = self._main_panel.view.path / what
         stat_res, stat_error = stat_path(target, lstat=False)
         if (stat_error is not None) or not S_ISDIR(stat_res.st_mode):
             self.launch(target)
             return
+        if resolve_symlinks:
+            target = target.resolve()
         self.go_to(target)
 
     def go_to(self, path):

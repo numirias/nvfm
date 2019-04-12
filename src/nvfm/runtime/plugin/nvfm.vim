@@ -39,6 +39,7 @@ hi NvfmMessage ctermfg=246
 
 noremap <silent>q :qall!<CR>
 noremap <silent>l :call NvfmEnter()<CR>
+noremap <silent>L :call NvfmEnter(v:null, v:true)<CR>
 noremap <silent><CR> :call NvfmEnter()<CR>
 noremap <silent>h :call NvfmEnter('..')<CR>
 noremap <silent>~ :call NvfmEnter($HOME)<CR>
