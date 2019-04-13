@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from nvfm.plugin import Plugin
+from nvfm.plugin import Plugin, History
 from nvfm.util import stat_path
 from nvfm.view import DirectoryView
 
@@ -100,3 +100,27 @@ def test_format_line_extra2(tree):
     stat_res, stat_error = stat_path(path)
     line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
     assert 'ee/ +3' in line
+
+
+def test_history():
+    history = History()
+    history.add('foo')
+    assert history.go(-1) is None
+    assert history.go(1) is None
+    assert history.go(0) == 'foo'
+    history.add('bar')
+    assert history.go(0) == 'bar'
+    assert history.go(-1) == 'foo'
+    assert history.go(-1) is None
+    history.add('baz')
+    history.add('spam')
+    assert history.all == ['foo', 'baz', 'spam']
+    assert history.go(0) == 'spam'
+    assert history.go(1) is None
+    assert history.go(-1) == 'baz'
+    assert history.go(-1) == 'foo'
+    assert history.go(-1) is None
+    assert history.go(1) == 'baz'
+    history.add('ham')
+    assert history.go(0) == 'ham'
+    assert history.all == ['foo', 'baz', 'ham']

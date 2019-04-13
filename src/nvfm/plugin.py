@@ -32,6 +32,37 @@ class EventManager:
             handler(*args, **kwargs)
 
 
+class History:
+
+    def __init__(self):
+        self._history = []
+        self._pointer = -1
+
+    def __repr__(self):
+        s = ', '.join(('*' + str(x) if i == self._pointer else str(x))
+                      for i, x in enumerate(self._history))
+        return f'History({s})'
+
+    @property
+    def all(self):
+        return self._history[:]
+
+    def add(self, item):
+        if self._history and self._history[self._pointer] == item:
+            return
+        if self._pointer < len(self._history) - 1:
+            self._history = self._history[:self._pointer + 1]
+        self._history.append(item)
+        self._pointer = len(self._history) - 1
+
+    def go(self, step):
+        new_p = self._pointer + step
+        if new_p < 0 or new_p > len(self._history) - 1:
+            return None
+        self._pointer = new_p
+        return self._history[new_p]
+
+
 @pynvim.plugin
 class Plugin:
 
@@ -45,6 +76,10 @@ class Plugin:
         self._main_panel = None
         self.views = {}
         self.events = EventManager()
+        self.history = History()
+        self.events.subscribe(
+            'view_loaded', lambda panel, view:
+            panel is self._main_panel and self.history.add(panel.view.path))
 
     @pynvim.function('NvfmStartup', sync=True)
     def func_nvfm_startup(self, args):
@@ -94,6 +129,13 @@ class Plugin:
         self._main_panel.show_item(path)
         self.focus_changed()
         logger.error('no directory entered!')
+
+    @pynvim.function('NvfmHistory', sync=True)
+    def func_nvfm_history(self, args):
+        step = args[0]
+        path = self.history.go(step)
+        if path is not None:
+            self.go_to(path)
 
     # If sync=True,the syntax highlighting is not applied
     # TODO Maybe use eval=... argument

@@ -43,6 +43,8 @@ noremap <silent>L :call NvfmEnter(v:null, v:true)<CR>
 noremap <silent><CR> :call NvfmEnter()<CR>
 noremap <silent>h :call NvfmEnter('..')<CR>
 noremap <silent>~ :call NvfmEnter($HOME)<CR>
+noremap <silent>b :call NvfmHistory(-1)<CR>
+noremap <silent>B :call NvfmHistory(1)<CR>
 
 
 let g:statusline1 = 'a'
