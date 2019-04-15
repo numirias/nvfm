@@ -102,6 +102,13 @@ def test_format_line_extra2(tree):
     assert 'ee/ +3' in line
 
 
+def test_format_line_extra3(tree):
+    path = tree / 'cc'
+    stat_res, stat_error = stat_path(path)
+    line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
+    assert 'cc/ +0' in line
+
+
 def test_history():
     history = History()
     history.add('foo')

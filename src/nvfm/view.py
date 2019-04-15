@@ -220,18 +220,27 @@ class DirectoryView(View):
             if not S_ISDIR(mode):
                 break
             try:
-                children = os.listdir(str(path))
+                children = os.scandir(str(path))
             except OSError:
                 break
-            if len(children) != 1:
-                extra += f' +{len(children)}'
-                break
-            path = path / children[0]
             try:
-                mode = path.stat().st_mode
+                first = next(children)
+            except StopIteration:
+                extra += ' +0'
+                break
+            try:
+                next(children)
+            except StopIteration:
+                pass
+            else:
+                extra += ' +' + str(2 + sum(1 for _ in children))
+                break
+            path = path / first
+            try:
+                mode = first.stat().st_mode
             except OSError:
                 break
-            extra += path.name + ('/' if S_ISDIR(mode) else '')
+            extra += first.name + ('/' if S_ISDIR(mode) else '')
         return extra
 
     @staticmethod
