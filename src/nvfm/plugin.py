@@ -11,6 +11,7 @@ import pynvim
 from .color import ColorManager
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
+from .config import sort_funcs
 
 HOST = platform.node()
 USER = getpass.getuser()
@@ -70,13 +71,14 @@ class Plugin:
         logger.debug('plugin init')
         self.vim = vim
         self.colors = ColorManager(vim)
-        # TODO Doesn't work
+        # TODO Needed?
         self._start_path = Path(os.environ.get('NVFM_START_PATH', os.getcwd()))
         self._panels = None
         self._main_panel = None
         self.views = {}
         self.events = EventManager()
         self.history = History()
+        self.sort_func = sort_funcs[0]
         self.events.subscribe(
             'view_loaded', lambda panel, view:
             panel is self._main_panel and self.history.add(panel.view.path))

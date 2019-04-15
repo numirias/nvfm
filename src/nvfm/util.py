@@ -30,14 +30,6 @@ def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower()
             for text in _nsre.split(s)]
 
-def list_files(path):
-    """List all files in path."""
-    filenames = os.listdir(str(path))
-    # XXX Is this too slow?
-    sorted_names = sorted(filenames, key=natural_sort_key)
-    files = [path / Path(n) for n in sorted_names]
-    return files
-
 def stat_path(path, lstat=True):
     error, stat_res = None, None
     f = path.lstat if lstat else path.stat

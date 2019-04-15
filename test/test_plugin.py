@@ -90,7 +90,7 @@ def test_format_line_extra(tree):
     """If a dir has only one child, show the child in the dir view"""
     path = tree / 'aa'
     stat_res, stat_error = stat_path(path)
-    line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
+    line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group')
     assert 'aa/aa_aa/aa_aa_f' in line
 
 
@@ -98,14 +98,14 @@ def test_format_line_extra2(tree):
     """Display number of items in a directory"""
     path = tree / 'ee'
     stat_res, stat_error = stat_path(path)
-    line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
+    line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group')
     assert 'ee/ +3' in line
 
 
 def test_format_line_extra3(tree):
     path = tree / 'cc'
     stat_res, stat_error = stat_path(path)
-    line, hls = DirectoryView._format_line(path, stat_res, 'some_hl_group')
+    line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group')
     assert 'cc/ +0' in line
 
 

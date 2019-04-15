@@ -2,8 +2,9 @@
 import os
 import stat
 from stat import S_ISDIR, S_ISLNK
+from pathlib import Path
 
-from .util import convert_size, hexdump, list_files, logger, stat_path
+from .util import convert_size, hexdump, logger
 
 # Files above this size will be truncated before preview
 PREVIEW_SIZE_LIMIT = 10**5
@@ -123,7 +124,7 @@ class DirectoryView(View):
     def setup(self, focus=None):
         self.focus_linenum = None
         try:
-            self.children = list_files(self.path)
+            self.children = self._list_files(self.path, self._plugin.sort_func)
         except OSError as e:
             # TODO Do we need to catch the OSError anymore?
             self.children = []
@@ -159,7 +160,7 @@ class DirectoryView(View):
     @property
     def focus_item(self):
         try:
-            return self.children[self.focus_linenum - 1]
+            return Path(self.children[self.focus_linenum - 1].path)
         except IndexError:
             return None
 
@@ -167,43 +168,49 @@ class DirectoryView(View):
 
     def draw(self, focus_item=None):
         """Render current directory."""
-        # focus_item = focus_item or self._plugin.focus_cache.get(self.path)
         lines = []
-        highlights = []
+        hls = []
         focus_linenum = None
-        for linenum, item in enumerate(self.children):
-            stat_res, stat_error = stat_path(item)
-            if stat_error is None:
-                hl_group = self._plugin.colors.file_hl_group(item, stat_res)
-                line, line_hls = self._format_line(item, stat_res, hl_group)
-                for hl in line_hls:
-                    highlights.append((linenum, *hl))
-            else:
+        for linenum, child in enumerate(self.children):
+            try:
+                stat_res = child.stat(follow_symlinks=False)
+            except OSError as stat_error:
                 line = str(stat_error)
+            else:
+                hl_group = self._plugin.colors.file_hl_group(child, stat_res)
+                line, line_hls = self._format_line(child.path, stat_res,
+                                                   hl_group)
+                for hl in line_hls:
+                    hls.append((linenum, *hl))
             lines.append(line)
             # TODO Change focus_linenum to focus_item
-            if item == focus_item:
+            if Path(child.path) == focus_item:
                 focus_linenum = linenum
         self.buf[:] = lines
-        self._apply_highlights(highlights)
+        self._apply_highlights(hls)
         # Attempt to restore focus
         if focus_linenum is not None:
             self.focus_linenum = focus_linenum + 1
 
     @staticmethod
-    def _format_line(path, stat_res, hl_group):
+    def _list_files(path, sort_func):
+        """List all files in path."""
+        return sort_func(os.scandir(str(path)))
+
+    @staticmethod
+    def _format_line(path_str, stat_res, hl_group):
         # TODO Orphaned symlink
         mode = stat_res.st_mode
         size = convert_size(stat_res.st_size)
         line = stat.filemode(mode) + ' ' + size.rjust(6) + ' '
         hls = []
         extra = None
-        name = path.name
+        name = Path(path_str).name
         if S_ISDIR(mode):
             name += '/'
-            extra = DirectoryView._format_dir_extra(mode, path)
+            extra = DirectoryView._format_dir_extra(mode, path_str)
         elif S_ISLNK(mode):
-            extra = DirectoryView._format_link_extra(path)
+            extra = DirectoryView._format_link_extra(path_str)
         if hl_group is not None:
             hls.append((hl_group, len(line), len(line) + len(name)))
         line += name
@@ -214,13 +221,13 @@ class DirectoryView(View):
         return line, hls
 
     @staticmethod
-    def _format_dir_extra(mode, path):
+    def _format_dir_extra(mode, path_str):
         extra = ''
         for _ in range(4):
             if not S_ISDIR(mode):
                 break
             try:
-                children = os.scandir(str(path))
+                children = os.scandir(path_str)
             except OSError:
                 break
             try:
@@ -235,7 +242,7 @@ class DirectoryView(View):
             else:
                 extra += ' +' + str(2 + sum(1 for _ in children))
                 break
-            path = path / first
+            path_str = os.path.join(path_str, first.name)
             try:
                 mode = first.stat().st_mode
             except OSError:
@@ -244,9 +251,9 @@ class DirectoryView(View):
         return extra
 
     @staticmethod
-    def _format_link_extra(path):
+    def _format_link_extra(path_str):
         try:
-            target = os.readlink(str(path))
+            target = os.readlink(path_str)
         except OSError:
             target = '?'
         return ' -> ' + target
