@@ -17,32 +17,51 @@ class View:
 
     VIEW_PREFIX = 'nvfm_view:'
 
-    def __init__(self, plugin, path, **kwargs):
+    def __init__(self, plugin, path):
+        logger.debug(('new view', path))
         self._plugin = plugin
+        self.panel = None
         self.path = path
-        self.buf = self._make_buf(path)
-        # TODO Refactor
-        self.setup(**kwargs)
+        self.buf = None
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)
 
-    def _make_buf(self, path):
+    def _create_and_load_buf(self, panel):
         buf = self._plugin.vim.request(
             'nvim_create_buf',
             True, # listed
             False, # scratch
         )
-        logger.debug(('new buf', buf))
+        panel.win.request('nvim_win_set_buf', buf)
         # TODO Do bulk request
         buf.request('nvim_buf_set_option', 'buftype', 'nowrite')
         buf.request('nvim_buf_set_option', 'bufhidden', 'hide')
-        if path is not None:
-            buf.name = self.VIEW_PREFIX + str(path)
-        return buf
+        if self.path is not None:
+            buf.name = self.VIEW_PREFIX + str(self.path)
+        logger.debug(('new buf', buf))
+        self.buf = buf
 
-    def loaded_into(self, panel):
-        """Event: The view has been loaded into `panel`."""
+    def load_into(self, panel):
+        """Load the view into `panel`.
+
+        - Make buffer if necessary.
+        - Fill buffer.
+        - Set buffer to the panel's window.
+        """
+        if self.buf is None:
+            self._create_and_load_buf(panel)
+            self.create_buf_post()
+        else:
+            panel.win.request('nvim_win_set_buf', self.buf)
+        self.panel = panel
+        self.loaded(panel)
+
+    def loaded(self, panel):
+        pass
+
+    def create_buf_post(self):
+        pass
 
     def draw_message(self, msg, hl_group=None):
         if hl_group is None:
@@ -55,16 +74,22 @@ class View:
 
 class MessageView(View):
 
-    def setup(self, message, hl_group=None):
-        self.draw_message(message, hl_group)
+    def __init__(self, *args, **kwargs):
+        self._message = kwargs.pop('message')
+        self._hl_group = kwargs.pop('hl_group', None)
+        super().__init__(*args, **kwargs)
 
-    def loaded_into(self, panel):
+    def create_buf_post(self):
+        self.draw_message(self._message, self._hl_group)
+
+    def loaded(self, panel):
+        # XXX Is this needed every time, or just initially?
         panel.win.request('nvim_win_set_option', 'wrap', True)
 
 
 class FileView(View):
 
-    def setup(self):
+    def create_buf_post(self):
         try:
             self.draw()
         except OSError as e:
@@ -118,11 +143,39 @@ class FileView(View):
 
 class DirectoryView(View):
 
-    focus_linenum = None
-    children = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._focus = None
+        self.children = None
 
-    def setup(self, focus=None):
-        self.focus_linenum = None
+    @property
+    def focus(self):
+        """The line number currently in focus."""
+        return self._focus
+
+    @focus.setter
+    def focus(self, val):
+        self._focus = val
+        # Note: The updated cursorline position might not be immediately
+        # visible if another event didn't trigger the draw (like a tabline
+        # update)
+        self._update_cursor()
+
+    def _update_cursor(self):
+        """Update cursor position to the currently focused item."""
+        if self._focus is None:
+            return
+        self.panel.win.cursor = [self._focus, 0]
+
+    def cursor_moved(self, linenum, col): # pylint:disable=unused-argument
+        """Update focus. Fired when the cursor moves."""
+        # TODO Prevent this from firing multiple times
+        # if linenum == self._focus:
+        #     return
+        self._focus = linenum
+        self._plugin.events.publish('main_focus_changed', self.focused_item)
+
+    def create_buf_post(self):
         try:
             self.children = self._list_files(self.path, self._plugin.sort_func)
         except OSError as e:
@@ -133,44 +186,33 @@ class DirectoryView(View):
         if not self.children:
             self.draw_message('(directory empty)')
             return
-        self.draw(focus)
+        self.draw()
 
-    def loaded_into(self, panel):
+    def loaded(self, panel):
         if self.children:
             # XXX Is this needed every time, or just initially?
             panel.win.request('nvim_win_set_option', 'cursorline', True)
-
-        if self.focus_linenum is not None:
-            # Note: The updated cursorline position might not be immediately
-            # visible if another event didn't trigger the draw (like a tabline
-            # update)
-            panel.win.cursor = [self.focus_linenum, 0]
+        self._update_cursor()
 
     @property
     def empty(self):
         return not self.children
 
-    def focus(self, linenum):
-        # TODO Prevent this from firing multiple times
-        # if linenum == self.focus_linenum:
-        #     return
-        self.focus_linenum = linenum
-        self._plugin.events.publish('focus_dir_item', self, self.focus_item)
-
     @property
-    def focus_item(self):
+    def focused_item(self):
         try:
-            return Path(self.children[self.focus_linenum - 1].path)
+            return Path(self.children[self.focus - 1].path)
         except IndexError:
             return None
 
-        self.focus_linenum = None
+    def linenum_of_item(self, item):
+        return [c.name for c in self.children].index(item.name) + 1
 
-    def draw(self, focus_item=None):
+    def draw(self):
         """Render current directory."""
+        # TODO Remove focused_item logic
         lines = []
         hls = []
-        focus_linenum = None
         for linenum, child in enumerate(self.children):
             try:
                 stat_res = child.stat(follow_symlinks=False)
@@ -183,14 +225,8 @@ class DirectoryView(View):
                 for hl in line_hls:
                     hls.append((linenum, *hl))
             lines.append(line)
-            # TODO Change focus_linenum to focus_item
-            if Path(child.path) == focus_item:
-                focus_linenum = linenum
         self.buf[:] = lines
         self._apply_highlights(hls)
-        # Attempt to restore focus
-        if focus_linenum is not None:
-            self.focus_linenum = focus_linenum + 1
 
     @staticmethod
     def _list_files(path, sort_func):

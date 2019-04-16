@@ -3,7 +3,7 @@
 from pathlib import Path
 from stat import S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISREG, S_ISSOCK
 
-from .util import logger, stat_path
+from .util import stat_path
 from .view import DirectoryView, FileView, MessageView
 
 
@@ -28,11 +28,10 @@ class Panel:
     def __init__(self, plugin, win):
         self._plugin = plugin
         self.win = win
-        # TODO Do we need to init with a buffer?
         self._view = None
 
     def __repr__(self):
-        return 'Panel(win=%s)' % self.win
+        return '%s(win=%s)' % (self.__class__.__name__, self.win)
 
     @property
     def view(self):
@@ -40,34 +39,25 @@ class Panel:
 
     @view.setter
     def view(self, view):
-        logger.debug(('load', view, 'into', self))
         if self._view is view:
-            # TODO Does this happen?
             return
         self._view = view
-        self.win.request('nvim_win_set_buf', view.buf)
-        view.loaded_into(self)
+        view.load_into(self)
         self._plugin.events.publish('view_loaded', self, self.view)
 
-    def show_item(self, item, focus_item=None):
-        """View `item` in the panel.
+    def load_view_by_path(self, item):
+        """Load a view for `item` in this panel.
 
-        `item` can be a file or a directory. `focused_item` can be set to the
-        item that should be highlighted.
-
+        `item` can be a file or directory.
         """
-        logger.debug(('view', item, 'in', self))
         view = self._plugin.views.get(item)
-        if view is not None:
-            logger.debug(('loading existing view'))
-            self.view = view
-            return
-        view = self._make_view(item, focus_item)
-        self._plugin.views[item] = view
+        if view is None:
+            view = self._make_view(item)
+            self._plugin.views[item] = view
         self.view = view
 
-    def _make_view(self, item, focus_item):
-        """Return a View object for `item`."""
+    def _make_view(self, item):
+        """Create and return a View() that displays `item`."""
         args = (self._plugin, item)
         if item is None:
             # TODO Use the same view always
@@ -78,7 +68,7 @@ class Panel:
                 *args, message=str(stat_error), hl_group='NvfmError')
         mode = stat_res.st_mode
         if S_ISDIR(mode):
-            return DirectoryView(*args, focus=focus_item)
+            return DirectoryView(*args)
         # TODO Check the stat() of the link
         if S_ISREG(mode):
             return FileView(*args)
@@ -95,31 +85,46 @@ class LeftPanel(Panel):
         if not isinstance(panel, MainPanel):
             return
         path = view.path
-        if path != Path('/'):
-            # TODO Dont carry focus_item as an argument
-            self.show_item(path.parent, focus_item=path)
+        if path == Path('/'):
+            self.load_view_by_path(None)
         else:
-            self.show_item(None)
+            self.load_view_by_path(path.parent)
+            self._view.focus = self._view.linenum_of_item(path)
 
 
 class MainPanel(Panel):
-    pass
+
+    def __init__(self, plugin, win):
+        super().__init__(plugin, win)
+        self._plugin.events.subscribe('main_cursor_moved',
+                                      self._keep_cursor_left)
+
+    def _keep_cursor_left(self, linenum, col):
+        """Ensure cursor is always in the left-most column."""
+        if col > 0:
+            self.win.cursor = [linenum, 0]
+
+    def load_view_by_path(self, item):
+        if isinstance(self._view, DirectoryView):
+            self._plugin.events.unsubscribe('main_cursor_moved',
+                                            self._view.cursor_moved)
+        super().load_view_by_path(item)
+        if isinstance(self._view, DirectoryView):
+            self._plugin.events.subscribe('main_cursor_moved',
+                                          self._view.cursor_moved)
 
 
 class RightPanel(Panel):
 
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
-        plugin.events.subscribe('focus_dir_item', self.event_focus_dir_item)
+        plugin.events.subscribe('main_focus_changed', self.main_focus_changed)
         plugin.events.subscribe('view_loaded', self.event_view_loaded)
 
-    def event_focus_dir_item(self, view, item):
-        # TODO
-        assert view
-        # TODO Assert that the event was fired by a view in the main panel
-        self.show_item(item)
+    def main_focus_changed(self, focused_item):
+        self.load_view_by_path(focused_item)
 
     def event_view_loaded(self, panel, view):
         if isinstance(panel, MainPanel) and isinstance(view, DirectoryView) \
                 and view.empty:
-            self.show_item(None)
+            self.load_view_by_path(None)

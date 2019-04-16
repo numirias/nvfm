@@ -43,7 +43,6 @@ def test_tabline(vim):
 
 def test_panels(tree, vim_ctx):
     os.environ['NVFM_START_PATH'] = str(tree)
-
     with vim_ctx() as vim:
         assert len(vim.windows) == 3
         left, mid, right = vim.windows
@@ -131,3 +130,22 @@ def test_history():
     history.add('ham')
     assert history.go(0) == 'ham'
     assert history.all == ['foo', 'baz', 'ham']
+
+
+def test_focus(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree)
+    with vim_ctx() as vim:
+        vim.call('NvfmEnter', str(tree / 'ee'))
+        left, mid, right = vim.windows
+        assert left.cursor == [5, 0]
+        assert mid.cursor == [1, 0]
+        assert right.cursor == [1, 0]
+        vim.feedkeys('j') # focus gg/ inside base/ee/
+        vim.feedkeys('h') # enter base/
+        assert left.cursor == [1, 0]
+        assert mid.cursor == [5, 0]
+        assert right.cursor == [2, 0]
+        vim.feedkeys('l') # enter base/ee/
+        assert left.cursor == [5, 0]
+        assert mid.cursor == [2, 0]
+        assert right.cursor == [1, 0]

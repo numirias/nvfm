@@ -26,6 +26,10 @@ class EventManager:
         logger.debug(('sub', handler, name))
         self._handlers[name].append(handler)
 
+    def unsubscribe(self, name, handler):
+        logger.debug(('unsub', handler, name))
+        self._handlers[name].remove(handler)
+
     def publish(self, name, *args, **kwargs):
         logger.debug(('pub', len(self._handlers[name]), name, args, kwargs))
         for handler in self._handlers[name]:
@@ -109,7 +113,7 @@ class Plugin:
         what = args[0] if args else None
         resolve_symlinks = args[1] if len(args) >= 2 else False
         if what is None:
-            target = self._main_panel.view.focus_item
+            target = self._main_panel.view.focused_item
             if target is None:
                 return
         elif what == '..':
@@ -128,8 +132,8 @@ class Plugin:
     def go_to(self, path):
         """The user enters `target`."""
         logger.debug(('enter', path))
-        self._main_panel.show_item(path)
-        self.focus_changed()
+        self._main_panel.load_view_by_path(path)
+        self.cursor_moved()
         logger.error('no directory entered!')
 
     @pynvim.function('NvfmHistory', sync=True)
@@ -142,22 +146,10 @@ class Plugin:
     # If sync=True,the syntax highlighting is not applied
     # TODO Maybe use eval=... argument
     @pynvim.autocmd('CursorMoved', sync=True)
-    def focus_changed(self):
+    def cursor_moved(self):
         # TODO Error when moving around .dotfiles/LS_COLORS
         # TODO Restrict event to affected (main) window
-        main = self._main_panel
-        logger.debug(('focus changed', main.view.path))
-
-        cursor = main.win.cursor
-        cur_line = cursor[0]
-        # Ensure cursor is always in left column
-        if cursor[1] > 0:
-            main.win.cursor = [cur_line, 0]
-        if cur_line == main.view.focus_linenum:
-            # CursorMoved was triggered, but the cursor didn't move
-            logger.debug('focus didn\'t change')
-            # TODO return
-        main.view.focus(cur_line)
+        self.events.publish('main_cursor_moved', *self._main_panel.win.cursor)
         self._update_tabline()
         self._update_status_main()
 
@@ -170,7 +162,7 @@ class Plugin:
     def _update_tabline(self):
         """Update display of vim tabline."""
         path = self._main_panel.view.path
-        selected = self._main_panel.view.focus_item
+        selected = self._main_panel.view.focused_item
         pathinfo = f'{USER}@{HOST}:%#TabLinePath#{path.parent}'
         if path.parent.name:
             pathinfo += '/'
@@ -193,4 +185,4 @@ class Plugin:
     def _update_status_main(self):
         view = self._main_panel.view
         self.vim.vars['statusline2'] = \
-            '%d/%d' % (view.focus_linenum, len(view.children))
+            '%d/%d' % (view.focus, len(view.children))

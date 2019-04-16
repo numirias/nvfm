@@ -6,6 +6,7 @@ set mouse=a
 set noswapfile
 set nowrap
 set nofoldenable
+set bufhidden=hide
 " TODO Necessary?
 set viminfo="NONE"
 set shada="NONE"
@@ -54,7 +55,7 @@ let g:statusline3 = 'c'
 
 function Startup()
     "TODO Needed?
-    setlocal bufhidden=wipe
+    " setlocal bufhidden=wipe
     vsplit
     vsplit
     exec 2 . "wincmd w"
