@@ -1,5 +1,4 @@
 # -*- coding: future_fstrings -*-
-from collections import defaultdict
 import getpass
 import os
 from pathlib import Path
@@ -9,32 +8,14 @@ from stat import S_ISDIR
 import pynvim
 
 from .color import ColorManager
+from .config import sort_funcs
+from .event import EventManager
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
-from .config import sort_funcs
+
 
 HOST = platform.node()
 USER = getpass.getuser()
-
-
-class EventManager:
-
-    def __init__(self):
-        self._handlers = defaultdict(list)
-
-    def subscribe(self, name, handler):
-        logger.debug(('sub', handler, name))
-        self._handlers[name].append(handler)
-
-    def unsubscribe(self, name, handler):
-        logger.debug(('unsub', handler, name))
-        self._handlers[name].remove(handler)
-
-    def publish(self, name, *args, **kwargs):
-        logger.debug(('pub', len(self._handlers[name]), name, args, kwargs))
-        for handler in self._handlers[name]:
-            logger.debug(('fire', handler))
-            handler(*args, **kwargs)
 
 
 class History:
@@ -75,8 +56,6 @@ class Plugin:
         logger.debug('plugin init')
         self.vim = vim
         self.colors = ColorManager(vim)
-        # TODO Needed?
-        self._start_path = Path(os.environ.get('NVFM_START_PATH', os.getcwd()))
         self._panels = None
         self._main_panel = None
         self.views = {}
@@ -84,8 +63,8 @@ class Plugin:
         self.history = History()
         self.sort_func = sort_funcs[0]
         self.events.subscribe(
-            'view_loaded', lambda panel, view:
-            panel is self._main_panel and self.history.add(panel.view.path))
+            MainPanel.event('view_loaded'),
+            lambda view: self.history.add(view.path))
 
     @pynvim.function('NvfmStartup', sync=True)
     def func_nvfm_startup(self, args):
@@ -100,7 +79,7 @@ class Plugin:
             RightPanel(self, wins[2]),
         ]
         self._main_panel = self._panels[1]
-        self.go_to(self._start_path)
+        self.go_to(Path(os.environ.get('NVFM_START_PATH', os.getcwd())))
 
     @pynvim.function('NvfmEnter', sync=True)
     def func_nvfm_enter(self, args):
@@ -133,8 +112,6 @@ class Plugin:
         """The user enters `target`."""
         logger.debug(('enter', path))
         self._main_panel.load_view_by_path(path)
-        self.cursor_moved()
-        logger.error('no directory entered!')
 
     @pynvim.function('NvfmHistory', sync=True)
     def func_nvfm_history(self, args):

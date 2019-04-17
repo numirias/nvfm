@@ -159,12 +159,12 @@ class DirectoryView(View):
         except IndexError:
             return None
 
-    def linenum_of_item(self, item):
-        return [c.name for c in self.children].index(item.name) + 1
+    @focused_item.setter
+    def focused_item(self, item):
+        self.focus = [c.name for c in self.children].index(item.name) + 1
 
     def draw(self):
         """Render current directory."""
-        # TODO Remove focused_item logic
         lines = []
         hls = []
         for linenum, child in enumerate(self.children):

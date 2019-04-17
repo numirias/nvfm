@@ -2,6 +2,7 @@
 from pathlib import Path
 from stat import S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISREG, S_ISSOCK
 
+from .event import EventEmitter
 from .util import stat_path
 from .view import DirectoryView, FileView, MessageView
 
@@ -20,7 +21,7 @@ def mode_to_type_str(mode):
     return msg
 
 
-class Panel:
+class Panel(EventEmitter):
     """A panel corresponds to a window that displays a directory or file
     preview."""
 
@@ -49,7 +50,7 @@ class Panel:
             self.win.request('nvim_win_set_buf', view.buf)
         self.update_cursor()
         view.load_done(self)
-        self._plugin.events.publish('view_loaded', self, self._view)
+        self._plugin.events.publish(self.event('view_loaded'), self._view)
 
     def _create_and_load_buf(self, view):
         buf = self._plugin.vim.request(
@@ -103,17 +104,17 @@ class LeftPanel(Panel):
 
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
-        plugin.events.subscribe('view_loaded', self.event_view_loaded)
+        plugin.events.subscribe(
+            MainPanel.event('view_loaded'), self._main_view_loaded)
 
-    def event_view_loaded(self, panel, view):
-        if not isinstance(panel, MainPanel):
-            return
+    def _main_view_loaded(self, view):
         path = view.path
         if path == Path('/'):
             self.load_view_by_path(None)
         else:
             self.load_view_by_path(path.parent)
-            self._view.focus = self._view.linenum_of_item(path)
+            # TODO setter for focus_item?
+            self._view.focused_item = path
             self.update_cursor()
 
 
@@ -122,32 +123,32 @@ class MainPanel(Panel):
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
         self._plugin.events.subscribe('main_cursor_moved',
-                                      self._keep_cursor_left)
+                                      self._main_cursor_moved)
 
-    def _keep_cursor_left(self, linenum, col):
-        """Ensure cursor is always in the left-most column."""
+    def _main_cursor_moved(self, linenum, col):
+        # Ensure cursor is always in the left-most column.
         if col > 0:
             self.win.cursor = [linenum, 0]
-
-        # TODO Prevent this from firing multiple times
-        # if linenum == self._focus:
-        #     return
+        if linenum == self._view.focus:
+            return
         self._view.focus = linenum
-        self._plugin.events.publish('main_focus_changed',
-                                    self._view.focused_item)
+        self._plugin.events.publish('main_focus_changed', self._view)
 
 
 class RightPanel(Panel):
 
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
-        plugin.events.subscribe('main_focus_changed', self.main_focus_changed)
-        plugin.events.subscribe('view_loaded', self.event_view_loaded)
+        plugin.events.subscribe(
+                'main_focus_changed',
+                lambda view: self.load_view_by_path(view.focused_item))
+        plugin.events.subscribe(
+            MainPanel.event('view_loaded'), self._main_view_loaded)
 
-    def main_focus_changed(self, focused_item):
-        self.load_view_by_path(focused_item)
-
-    def event_view_loaded(self, panel, view):
-        if isinstance(panel, MainPanel) and isinstance(view, DirectoryView) \
-                and view.empty:
-            self.load_view_by_path(None)
+    def _main_view_loaded(self, view):
+        """A view was loaded in the main panel. Preview its focused item."""
+        if isinstance(view, DirectoryView):
+            if view.empty:
+                self.load_view_by_path(None)
+            else:
+                self.load_view_by_path(view.focused_item)
