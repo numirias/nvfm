@@ -9,7 +9,7 @@ import pynvim
 
 from .color import ColorManager
 from .config import sort_funcs
-from .event import EventManager
+from .event import EventManager, Event, Global
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
 
@@ -58,11 +58,12 @@ class Plugin:
         self.colors = ColorManager(vim)
         self._panels = None
         self._main_panel = None
+        self._winid_to_win = None
         self.views = {}
         self.events = EventManager()
         self.history = History()
         self.sort_func = sort_funcs[0]
-        self.events.watch(self)
+        self.events.manage(self)
 
     @pynvim.function('NvfmStartup', sync=True)
     def func_nvfm_startup(self, args):
@@ -76,6 +77,7 @@ class Plugin:
             MainPanel(self, wins[1]),
             RightPanel(self, wins[2]),
         ]
+        self._winid_to_win = {p.win.handle: p.win for p in self._panels}
         self._main_panel = self._panels[1]
         self.go_to(Path(os.environ.get('NVFM_START_PATH', os.getcwd())))
 
@@ -119,16 +121,15 @@ class Plugin:
             self.go_to(path)
 
     # If sync=True,the syntax highlighting is not applied
-    # TODO Maybe use eval=... argument
-    @pynvim.autocmd('CursorMoved', sync=True)
-    def cursor_moved(self):
+    @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')
+    def cursor_moved(self, win_id):
         # TODO Error when moving around .dotfiles/LS_COLORS
-        # TODO Restrict event to affected (main) window
-        self.events.publish('main_cursor_moved', *self._main_panel.win.cursor)
+        self.events.publish(
+            Event('cursor_moved', Global), self._winid_to_win[win_id])
         self._update_tabline()
         self._update_status_main()
 
-    @MainPanel.event('view_loaded')
+    @MainPanel.on('view_loaded')
     def add_history(self, view):
         self.history.add(view.path)
 

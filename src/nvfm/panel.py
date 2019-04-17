@@ -2,7 +2,7 @@
 from pathlib import Path
 from stat import S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISREG, S_ISSOCK
 
-from .event import EventEmitter
+from .event import EventEmitter, Global
 from .util import stat_path
 from .view import DirectoryView, FileView, MessageView
 
@@ -29,7 +29,7 @@ class Panel(EventEmitter):
         self._plugin = plugin
         self.win = win
         self._view = None
-        plugin.events.watch(self)
+        plugin.events.manage(self)
 
     def __repr__(self):
         return '%s(win=%s)' % (self.__class__.__name__, self.win)
@@ -43,7 +43,6 @@ class Panel(EventEmitter):
         if self._view is view:
             return
         self._view = view
-
         if view.buf is None:
             self._create_and_load_buf(view)
             view.create_buf_post()
@@ -51,7 +50,7 @@ class Panel(EventEmitter):
             self.win.request('nvim_win_set_buf', view.buf)
         self.update_cursor()
         view.load_done(self)
-        self._plugin.events.publish(self.event('view_loaded'), self._view)
+        self.emit('view_loaded', self._view)
 
     def _create_and_load_buf(self, view):
         buf = self._plugin.vim.request(
@@ -103,24 +102,23 @@ class Panel(EventEmitter):
 
 class MainPanel(Panel):
 
-    def __init__(self, plugin, win):
-        super().__init__(plugin, win)
-        self._plugin.events.subscribe('main_cursor_moved',
-                                      self._main_cursor_moved)
-
-    def _main_cursor_moved(self, linenum, col):
-        # Ensure cursor is always in the left-most column.
+    @Global.on('cursor_moved')
+    def _cursor_moved(self, win):
+        if win is not self.win:
+            return
+        linenum, col = win.cursor
+        # Ensure cursor is always in the left-most column
         if col > 0:
             self.win.cursor = [linenum, 0]
         if linenum == self._view.focus:
             return
         self._view.focus = linenum
-        self._plugin.events.publish('main_focus_changed', self._view)
+        self.emit('focus_changed', self._view)
 
 
 class LeftPanel(Panel):
 
-    @MainPanel.event('view_loaded')
+    @MainPanel.on('view_loaded')
     def _main_view_loaded(self, view):
         """A view was loaded in the main panel. Preview its parent."""
         path = view.path
@@ -135,13 +133,11 @@ class LeftPanel(Panel):
 
 class RightPanel(Panel):
 
-    def __init__(self, plugin, win):
-        super().__init__(plugin, win)
-        plugin.events.subscribe(
-            'main_focus_changed',
-            lambda view: self.load_view_by_path(view.focused_item))
+    @MainPanel.on('focus_changed')
+    def _main__focus_changed(self, view):
+        self.load_view_by_path(view.focused_item)
 
-    @MainPanel.event('view_loaded')
+    @MainPanel.on('view_loaded')
     def _main_view_loaded(self, view):
         """A view was loaded in the main panel. Preview its focused item."""
         if isinstance(view, DirectoryView):
