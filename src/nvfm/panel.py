@@ -1,5 +1,4 @@
 # -*- coding: future_fstrings -*-
-
 from pathlib import Path
 from stat import S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISREG, S_ISSOCK
 
@@ -42,8 +41,33 @@ class Panel:
         if self._view is view:
             return
         self._view = view
-        view.load_into(self)
-        self._plugin.events.publish('view_loaded', self, self.view)
+
+        if view.buf is None:
+            self._create_and_load_buf(view)
+            view.create_buf_post()
+        else:
+            self.win.request('nvim_win_set_buf', view.buf)
+        self.update_cursor()
+        view.load_done(self)
+        self._plugin.events.publish('view_loaded', self, self._view)
+
+    def _create_and_load_buf(self, view):
+        buf = self._plugin.vim.request(
+            'nvim_create_buf',
+            True, # listed
+            False, # scratch
+        )
+        self.win.request('nvim_win_set_buf', buf)
+        view.setup_buf(buf)
+
+    def update_cursor(self):
+        """Update window's cursor position as specified by the view."""
+        cursor = self._view.cursor
+        if cursor is not None:
+            # Note: The updated cursorline position might not be immediately
+            # visible if another event didn't trigger the draw (like a tabline
+            # update)
+            self.win.cursor = cursor
 
     def load_view_by_path(self, item):
         """Load a view for `item` in this panel.
@@ -90,6 +114,7 @@ class LeftPanel(Panel):
         else:
             self.load_view_by_path(path.parent)
             self._view.focus = self._view.linenum_of_item(path)
+            self.update_cursor()
 
 
 class MainPanel(Panel):
@@ -104,14 +129,12 @@ class MainPanel(Panel):
         if col > 0:
             self.win.cursor = [linenum, 0]
 
-    def load_view_by_path(self, item):
-        if isinstance(self._view, DirectoryView):
-            self._plugin.events.unsubscribe('main_cursor_moved',
-                                            self._view.cursor_moved)
-        super().load_view_by_path(item)
-        if isinstance(self._view, DirectoryView):
-            self._plugin.events.subscribe('main_cursor_moved',
-                                          self._view.cursor_moved)
+        # TODO Prevent this from firing multiple times
+        # if linenum == self._focus:
+        #     return
+        self._view.focus = linenum
+        self._plugin.events.publish('main_focus_changed',
+                                    self._view.focused_item)
 
 
 class RightPanel(Panel):

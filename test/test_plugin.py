@@ -36,7 +36,7 @@ def test_startup(vim):
 
 def test_tabline(vim):
     tabline = vim.options['tabline']
-    # Strip markup
+    # Strip vim's tabline markup
     tabline = re.sub('%#.*?#', '', tabline)
     assert os.getcwd() in tabline
 
@@ -83,6 +83,15 @@ def test_navigation(tree, vim_ctx):
         assert 'base' in left.buffer[:][0]
         assert 'aa' in mid.buffer[:][0]
         assert 'aa_aa' in right.buffer[:][0]
+
+
+def test_navigate_to_root(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree)
+    with vim_ctx() as vim:
+        for _ in tree.parts:
+            vim.feedkeys('h')
+        left, mid, right = vim.windows
+        assert re.match(r'\(.*nothing.*\)', '\n'.join(left.buffer[:]))
 
 
 def test_format_line_extra(tree):

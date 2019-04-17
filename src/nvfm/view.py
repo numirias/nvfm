@@ -16,48 +16,26 @@ HEXDUMP_LIMIT = 16 * 256
 class View:
 
     VIEW_PREFIX = 'nvfm_view:'
+    cursor = None
 
     def __init__(self, plugin, path):
         logger.debug(('new view', path))
         self._plugin = plugin
-        self.panel = None
         self.path = path
         self.buf = None
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)
 
-    def _create_and_load_buf(self, panel):
-        buf = self._plugin.vim.request(
-            'nvim_create_buf',
-            True, # listed
-            False, # scratch
-        )
-        panel.win.request('nvim_win_set_buf', buf)
+    def setup_buf(self, buf):
         # TODO Do bulk request
         buf.request('nvim_buf_set_option', 'buftype', 'nowrite')
         buf.request('nvim_buf_set_option', 'bufhidden', 'hide')
         if self.path is not None:
             buf.name = self.VIEW_PREFIX + str(self.path)
-        logger.debug(('new buf', buf))
         self.buf = buf
 
-    def load_into(self, panel):
-        """Load the view into `panel`.
-
-        - Make buffer if necessary.
-        - Fill buffer.
-        - Set buffer to the panel's window.
-        """
-        if self.buf is None:
-            self._create_and_load_buf(panel)
-            self.create_buf_post()
-        else:
-            panel.win.request('nvim_win_set_buf', self.buf)
-        self.panel = panel
-        self.loaded(panel)
-
-    def loaded(self, panel):
+    def load_done(self, panel):
         pass
 
     def create_buf_post(self):
@@ -82,7 +60,7 @@ class MessageView(View):
     def create_buf_post(self):
         self.draw_message(self._message, self._hl_group)
 
-    def loaded(self, panel):
+    def load_done(self, panel):
         # XXX Is this needed every time, or just initially?
         panel.win.request('nvim_win_set_option', 'wrap', True)
 
@@ -145,35 +123,12 @@ class DirectoryView(View):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._focus = None
+        self.focus = 1
         self.children = None
 
     @property
-    def focus(self):
-        """The line number currently in focus."""
-        return self._focus
-
-    @focus.setter
-    def focus(self, val):
-        self._focus = val
-        # Note: The updated cursorline position might not be immediately
-        # visible if another event didn't trigger the draw (like a tabline
-        # update)
-        self._update_cursor()
-
-    def _update_cursor(self):
-        """Update cursor position to the currently focused item."""
-        if self._focus is None:
-            return
-        self.panel.win.cursor = [self._focus, 0]
-
-    def cursor_moved(self, linenum, col): # pylint:disable=unused-argument
-        """Update focus. Fired when the cursor moves."""
-        # TODO Prevent this from firing multiple times
-        # if linenum == self._focus:
-        #     return
-        self._focus = linenum
-        self._plugin.events.publish('main_focus_changed', self.focused_item)
+    def cursor(self):
+        return [self.focus, 0]
 
     def create_buf_post(self):
         try:
@@ -188,11 +143,10 @@ class DirectoryView(View):
             return
         self.draw()
 
-    def loaded(self, panel):
+    def load_done(self, panel):
         if self.children:
             # XXX Is this needed every time, or just initially?
             panel.win.request('nvim_win_set_option', 'cursorline', True)
-        self._update_cursor()
 
     @property
     def empty(self):
