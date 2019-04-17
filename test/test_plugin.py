@@ -16,9 +16,9 @@ def tree(tmpdir_factory):
     root = Path(str(tmpdir_factory.mktemp('tree')))
     make_tree(root, '''
     base/
-        aa/
-            aa_aa/
-                aa_aa_f
+        aa1/
+            aa2/
+                aa3
         bb=bb_line_1\\nbb_line_2
         cc/
         dd
@@ -53,13 +53,13 @@ def test_panels(tree, vim_ctx):
 
         lines = mid.buffer[:]
         assert len(lines) == 5
-        assert 'aa' in lines[0]
+        assert 'aa1' in lines[0]
         assert 'bb' in lines[1]
         assert 'cc' in lines[2]
 
         lines = right.buffer[:]
         assert len(lines) == 1
-        assert 'aa_aa' in lines[0]
+        assert 'aa2' in lines[0]
 
 
 def test_navigation(tree, vim_ctx):
@@ -72,17 +72,15 @@ def test_navigation(tree, vim_ctx):
         assert re.match(r'\(.*empty.*\)', '\n'.join(right.buffer[:]))
         vim.feedkeys('j')
         assert re.match(r'\(.*empty.*\)', '\n'.join(right.buffer[:]))
-        # Go to top
         vim.feedkeys('gg')
-        # Enter dir "aaa"
         vim.feedkeys('l')
-        assert 'aa' in left.buffer[:][0]
-        assert 'aa_aa' in mid.buffer[:][0]
-        assert 'aa_aa_f' in right.buffer[:][0]
+        assert 'aa1' in left.buffer[:][0]
+        assert 'aa2' in mid.buffer[:][0]
+        assert 'aa3' in right.buffer[:][0]
         vim.feedkeys('h')
         assert 'base' in left.buffer[:][0]
-        assert 'aa' in mid.buffer[:][0]
-        assert 'aa_aa' in right.buffer[:][0]
+        assert 'aa1' in mid.buffer[:][0]
+        assert 'aa2' in right.buffer[:][0]
 
 
 def test_navigate_to_root(tree, vim_ctx):
@@ -96,10 +94,10 @@ def test_navigate_to_root(tree, vim_ctx):
 
 def test_format_line_extra(tree):
     """If a dir has only one child, show the child in the dir view"""
-    path = tree / 'aa'
+    path = tree / 'aa1'
     stat_res, stat_error = stat_path(path)
     line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group')
-    assert 'aa/aa_aa/aa_aa_f' in line
+    assert 'aa1/aa2/aa3' in line
 
 
 def test_format_line_extra2(tree):
@@ -139,6 +137,23 @@ def test_history():
     history.add('ham')
     assert history.go(0) == 'ham'
     assert history.all == ['foo', 'baz', 'ham']
+
+
+def test_navigate_history(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree)
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        vim.feedkeys('l')
+        vim.feedkeys('b')
+        assert 'aa1' in mid.buffer[:][0]
+        vim.feedkeys('b')
+        assert 'aa2' in mid.buffer[:][0]
+        vim.feedkeys('l')
+        assert 'aa3' in mid.buffer[:][0]
+        vim.feedkeys('b')
+        assert 'aa2' in mid.buffer[:][0]
+        vim.feedkeys('B')
+        assert 'aa3' in mid.buffer[:][0]
 
 
 def test_focus(tree, vim_ctx):

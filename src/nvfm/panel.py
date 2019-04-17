@@ -29,6 +29,7 @@ class Panel(EventEmitter):
         self._plugin = plugin
         self.win = win
         self._view = None
+        plugin.events.watch(self)
 
     def __repr__(self):
         return '%s(win=%s)' % (self.__class__.__name__, self.win)
@@ -100,24 +101,6 @@ class Panel(EventEmitter):
         return MessageView(*args, message='(%s)' % mode_to_type_str(mode))
 
 
-class LeftPanel(Panel):
-
-    def __init__(self, plugin, win):
-        super().__init__(plugin, win)
-        plugin.events.subscribe(
-            MainPanel.event('view_loaded'), self._main_view_loaded)
-
-    def _main_view_loaded(self, view):
-        path = view.path
-        if path == Path('/'):
-            self.load_view_by_path(None)
-        else:
-            self.load_view_by_path(path.parent)
-            # TODO setter for focus_item?
-            self._view.focused_item = path
-            self.update_cursor()
-
-
 class MainPanel(Panel):
 
     def __init__(self, plugin, win):
@@ -135,16 +118,30 @@ class MainPanel(Panel):
         self._plugin.events.publish('main_focus_changed', self._view)
 
 
+class LeftPanel(Panel):
+
+    @MainPanel.event('view_loaded')
+    def _main_view_loaded(self, view):
+        """A view was loaded in the main panel. Preview its parent."""
+        path = view.path
+        if path == Path('/'):
+            self.load_view_by_path(None)
+        else:
+            self.load_view_by_path(path.parent)
+            # TODO setter for focus_item?
+            self._view.focused_item = path
+            self.update_cursor()
+
+
 class RightPanel(Panel):
 
     def __init__(self, plugin, win):
         super().__init__(plugin, win)
         plugin.events.subscribe(
-                'main_focus_changed',
-                lambda view: self.load_view_by_path(view.focused_item))
-        plugin.events.subscribe(
-            MainPanel.event('view_loaded'), self._main_view_loaded)
+            'main_focus_changed',
+            lambda view: self.load_view_by_path(view.focused_item))
 
+    @MainPanel.event('view_loaded')
     def _main_view_loaded(self, view):
         """A view was loaded in the main panel. Preview its focused item."""
         if isinstance(view, DirectoryView):

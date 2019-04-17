@@ -62,9 +62,7 @@ class Plugin:
         self.events = EventManager()
         self.history = History()
         self.sort_func = sort_funcs[0]
-        self.events.subscribe(
-            MainPanel.event('view_loaded'),
-            lambda view: self.history.add(view.path))
+        self.events.watch(self)
 
     @pynvim.function('NvfmStartup', sync=True)
     def func_nvfm_startup(self, args):
@@ -129,6 +127,10 @@ class Plugin:
         self.events.publish('main_cursor_moved', *self._main_panel.win.cursor)
         self._update_tabline()
         self._update_status_main()
+
+    @MainPanel.event('view_loaded')
+    def add_history(self, view):
+        self.history.add(view.path)
 
     def launch(self, target):
         # TODO Proper application launcher implementation
