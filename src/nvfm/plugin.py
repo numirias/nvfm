@@ -111,7 +111,7 @@ class Plugin:
     def go_to(self, path):
         """The user enters `target`."""
         logger.debug(('enter', path))
-        self._main_panel.load_view_by_path(path)
+        self._main_panel.view = self._main_panel.view_by_path(path)
 
     @pynvim.function('NvfmHistory', sync=True)
     def func_nvfm_history(self, args):

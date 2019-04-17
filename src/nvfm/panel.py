@@ -1,24 +1,8 @@
 # -*- coding: future_fstrings -*-
 from pathlib import Path
-from stat import S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISREG, S_ISSOCK
 
 from .event import EventEmitter, Global
-from .util import stat_path
-from .view import DirectoryView, FileView, MessageView
-
-
-def mode_to_type_str(mode):
-    if S_ISCHR(mode):
-        msg = 'character special device file'
-    elif S_ISBLK(mode):
-        msg = 'block special device file'
-    elif S_ISFIFO(mode):
-        msg = 'FIFO (named pipe)'
-    elif S_ISSOCK(mode):
-        msg = 'socket'
-    else:
-        msg = 'unknown file type'
-    return msg
+from .view import make_view, DirectoryView
 
 
 class Panel(EventEmitter):
@@ -44,60 +28,37 @@ class Panel(EventEmitter):
             return
         self._view = view
         if view.buf is None:
-            self._create_and_load_buf(view)
-            view.create_buf_post()
+            view.create_buf()
+            self._load_buf(view.buf)
+            view.buf_created()
         else:
-            self.win.request('nvim_win_set_buf', view.buf)
-        self.update_cursor()
+            self._load_buf(view.buf)
         view.load_done(self)
-        self.emit('view_loaded', self._view)
+        self.emit('view_loaded', self.view)
+        self.update_cursor()
 
-    def _create_and_load_buf(self, view):
-        buf = self._plugin.vim.request(
-            'nvim_create_buf',
-            True, # listed
-            False, # scratch
-        )
+    def _load_buf(self, buf):
         self.win.request('nvim_win_set_buf', buf)
-        view.setup_buf(buf)
 
     def update_cursor(self):
         """Update window's cursor position as specified by the view."""
-        cursor = self._view.cursor
+        cursor = self.view.cursor
         if cursor is not None:
             # Note: The updated cursorline position might not be immediately
             # visible if another event didn't trigger the draw (like a tabline
             # update)
             self.win.cursor = cursor
 
-    def load_view_by_path(self, item):
-        """Load a view for `item` in this panel.
+    def view_by_path(self, item):
+        """Return a view that displays `path`.
 
-        `item` can be a file or directory.
+        If a matching view doesn't exist, it's created.
         """
         view = self._plugin.views.get(item)
         if view is None:
-            view = self._make_view(item)
+            view = make_view(self._plugin, item)
             self._plugin.views[item] = view
-        self.view = view
-
-    def _make_view(self, item):
-        """Create and return a View() that displays `item`."""
-        args = (self._plugin, item)
-        if item is None:
-            # TODO Use the same view always
-            return MessageView(*args, message='(nothing to show)')
-        stat_res, stat_error = stat_path(item, lstat=False)
-        if stat_error is not None:
-            return MessageView(
-                *args, message=str(stat_error), hl_group='NvfmError')
-        mode = stat_res.st_mode
-        if S_ISDIR(mode):
-            return DirectoryView(*args)
-        # TODO Check the stat() of the link
-        if S_ISREG(mode):
-            return FileView(*args)
-        return MessageView(*args, message='(%s)' % mode_to_type_str(mode))
+        return view
 
 
 class MainPanel(Panel):
@@ -110,10 +71,10 @@ class MainPanel(Panel):
         # Ensure cursor is always in the left-most column
         if col > 0:
             self.win.cursor = [linenum, 0]
-        if linenum == self._view.focus:
+        if linenum == self.view.focus:
             return
-        self._view.focus = linenum
-        self.emit('focus_changed', self._view)
+        self.view.focus = linenum
+        self.emit('focus_changed', self.view)
 
 
 class LeftPanel(Panel):
@@ -123,11 +84,10 @@ class LeftPanel(Panel):
         """A view was loaded in the main panel. Preview its parent."""
         path = view.path
         if path == Path('/'):
-            self.load_view_by_path(None)
+            self.view = self.view_by_path(None)
         else:
-            self.load_view_by_path(path.parent)
-            # TODO setter for focus_item?
-            self._view.focused_item = path
+            self.view = self.view_by_path(path.parent)
+            self.view.focused_item = path
             self.update_cursor()
 
 
@@ -135,13 +95,13 @@ class RightPanel(Panel):
 
     @MainPanel.on('focus_changed')
     def _main__focus_changed(self, view):
-        self.load_view_by_path(view.focused_item)
+        self.view = self.view_by_path(view.focused_item)
 
     @MainPanel.on('view_loaded')
     def _main_view_loaded(self, view):
         """A view was loaded in the main panel. Preview its focused item."""
         if isinstance(view, DirectoryView):
             if view.empty:
-                self.load_view_by_path(None)
+                self.view = self.view_by_path(None)
             else:
-                self.load_view_by_path(view.focused_item)
+                self.view = self.view_by_path(view.focused_item)

@@ -1,16 +1,50 @@
 # -*- coding: future_fstrings -*-
 import os
-import stat
-from stat import S_ISDIR, S_ISLNK
 from pathlib import Path
+import stat
+from stat import (S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISLNK, S_ISREG,
+                  S_ISSOCK)
 
-from .util import convert_size, hexdump, logger
+from .util import convert_size, hexdump, logger, stat_path
 
 # Files above this size will be truncated before preview
 PREVIEW_SIZE_LIMIT = 10**5
 
 # Max number of bytes in a hexdump preview
 HEXDUMP_LIMIT = 16 * 256
+
+
+def make_view(plugin, item):
+    """Create and return a View() instance that displays `item`."""
+    args = (plugin, item)
+    if item is None:
+        # TODO Use the same view always
+        return MessageView(*args, message='(nothing to show)')
+    stat_res, stat_error = stat_path(item, lstat=False)
+    if stat_error is not None:
+        return MessageView(
+            *args, message=str(stat_error), hl_group='NvfmError')
+    mode = stat_res.st_mode
+    if S_ISDIR(mode):
+        return DirectoryView(*args)
+    # TODO Check the stat() of the link
+    if S_ISREG(mode):
+        return FileView(*args)
+    return MessageView(*args, message='(%s)' % mode_to_type_str(mode))
+
+
+def mode_to_type_str(mode):
+    if S_ISCHR(mode):
+        msg = 'character special device file'
+    elif S_ISBLK(mode):
+        msg = 'block special device file'
+    elif S_ISFIFO(mode):
+        msg = 'FIFO (named pipe)'
+    elif S_ISSOCK(mode):
+        msg = 'socket'
+    else:
+        msg = 'unknown file type'
+    return msg
 
 
 class View:
@@ -27,18 +61,22 @@ class View:
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)
 
-    def setup_buf(self, buf):
+    def create_buf(self):
+        self.buf = self._plugin.vim.request(
+            'nvim_create_buf',
+            True, # listed
+            False, # scratch
+        )
+
+    def buf_created(self):
+        buf = self.buf
         # TODO Do bulk request
         buf.request('nvim_buf_set_option', 'buftype', 'nowrite')
         buf.request('nvim_buf_set_option', 'bufhidden', 'hide')
         if self.path is not None:
             buf.name = self.VIEW_PREFIX + str(self.path)
-        self.buf = buf
 
     def load_done(self, panel):
-        pass
-
-    def create_buf_post(self):
         pass
 
     def draw_message(self, msg, hl_group=None):
@@ -57,7 +95,8 @@ class MessageView(View):
         self._hl_group = kwargs.pop('hl_group', None)
         super().__init__(*args, **kwargs)
 
-    def create_buf_post(self):
+    def buf_created(self):
+        super().buf_created()
         self.draw_message(self._message, self._hl_group)
 
     def load_done(self, panel):
@@ -67,7 +106,8 @@ class MessageView(View):
 
 class FileView(View):
 
-    def create_buf_post(self):
+    def buf_created(self):
+        super().buf_created()
         try:
             self.draw()
         except OSError as e:
@@ -130,7 +170,8 @@ class DirectoryView(View):
     def cursor(self):
         return [self.focus, 0]
 
-    def create_buf_post(self):
+    def buf_created(self):
+        super().buf_created()
         try:
             self.children = self._list_files(self.path, self._plugin.sort_func)
         except OSError as e:
