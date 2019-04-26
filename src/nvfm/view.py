@@ -67,34 +67,42 @@ class View(ViewHelpersMixin):
         logger.debug(('new view', path))
         self._plugin = plugin
         self.path = path
-        self.buf = None
+        self.buf = self._create_buf()
+        self._buf_configured = False
         self.dirty = True
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)
 
-    def create_buf(self):
-        self.buf = self._plugin.vim.request(
+    def _create_buf(self):
+        return self._plugin.vim.request(
             'nvim_create_buf',
             True, # listed
             False, # scratch
         )
 
-    def buf_created(self):
+    def configure_buf(self):
+        if self._buf_configured:
+            return
         buf = self.buf
         # TODO Do bulk request
         buf.request('nvim_buf_set_option', 'buftype', 'nowrite')
         buf.request('nvim_buf_set_option', 'bufhidden', 'hide')
         if self.path is not None:
             buf.name = self.VIEW_PREFIX + str(self.path)
+        self._buf_configured = True
 
-    def finish_loading(self, panel):
-        self.load_done(panel)
-        self.dirty = False
-
-    def load_done(self, panel):
-        """This view has been loaded into `panel`."""
+    def configure_win(self, win):
         pass
+
+    def load(self):
+        """Load the view. Redraw if it's dirty."""
+        if self.dirty:
+            self.draw()
+            self.dirty = False
+
+    def draw(self):
+        raise NotImplementedError()
 
     def remove(self):
         """Called when the view is removed from the view list."""
@@ -108,25 +116,22 @@ class MessageView(View):
         self._hl_group = kwargs.pop('hl_group', None)
         super().__init__(*args, **kwargs)
 
-    def load_done(self, panel):
-        # XXX Is this needed every time, or just initially?
-        panel.win.request('nvim_win_set_option', 'wrap', True)
-        if self.dirty:
-            self.draw_message(self._message, self._hl_group)
+    def draw(self):
+        self.draw_message(self._message, self._hl_group)
+
+    def configure_win(self, win):
+        win.request('nvim_win_set_option', 'wrap', True)
 
 
 class FileView(View):
 
-    def load_done(self, panel):
-        if self.dirty:
-            try:
-                self.draw()
-            except OSError as e:
-                self.draw_message(str(e), 'Error')
-                return
-            self._detect_filetype()
-
     def draw(self):
+        try:
+            self._draw()
+        except OSError as e:
+            self.draw_message(str(e), 'Error')
+
+    def _draw(self):
         # TODO Better heuristics to detect binary files
         buf = self.buf
         path = self.path
@@ -147,6 +152,7 @@ class FileView(View):
             # TODO Better indicator for truncated file view
             lines += ['...']
         buf[:] = lines
+        self._detect_filetype()
 
     def _detect_filetype(self):
         cur = self._plugin.vim.current
@@ -180,11 +186,17 @@ class DirectoryView(View):
         # List of items in directory (of os.DirEntry, not pathlib.Path)
         self.children = None
 
-    @property
-    def cursor(self):
-        return [self.focus, 0]
+    def configure_win(self, win):
+        if self.children:
+            win.request('nvim_win_set_option', 'cursorline', True)
 
     def draw(self):
+        # TODO Refactor?
+        focused_item = self.focused_item
+        self._draw()
+        self.focused_item = focused_item
+
+    def _draw(self):
         try:
             self.children = self._list_files(self.path, self._plugin.options['sort'])
         except OSError as e:
@@ -196,15 +208,9 @@ class DirectoryView(View):
             return
         self._render_children()
 
-    def load_done(self, panel):
-        if self.dirty:
-            # TODO Refactor?
-            focused_item = self.focused_item
-            self.draw()
-            self.focused_item = focused_item
-        if self.children:
-            # XXX Is this needed every time, or just initially?
-            panel.win.request('nvim_win_set_option', 'cursorline', True)
+    @property
+    def cursor(self):
+        return [self.focus, 0]
 
     @property
     def empty(self):

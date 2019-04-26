@@ -146,11 +146,14 @@ class Plugin:
 
     @pynvim.function('NvfmRefresh', sync=True)
     def func_nvfm_refresh(self, args):
+        """Refresh all views.
+
+        This marks all views as dirty and refreshes the visible ones.
+        """
         for view in self.views.values():
             view.dirty = True
         for panel in self._panels:
-            panel.view.finish_loading(panel)
-            panel.update_cursor()
+            panel.refresh()
 
     # If sync=True,the syntax highlighting is not applied
     @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')

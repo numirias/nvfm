@@ -27,19 +27,16 @@ class Panel(EventEmitter):
         if self._view is view:
             return
         self._view = view
-        if view.buf is None:
-            view.create_buf()
-            self._load_buf(view.buf)
-            view.buf_created()
-        else:
-            self._load_buf(view.buf)
-        view.finish_loading(self)
+        self.win.request('nvim_win_set_buf', view.buf)
+        view.configure_buf()
+        view.load()
+        view.configure_win(self.win)
         self.emit('view_loaded', self.view)
         self.update_cursor()
 
-    def _load_buf(self, buf):
-        """Load buffer `buf` into this panel."""
-        self.win.request('nvim_win_set_buf', buf)
+    def refresh(self):
+        self.view.load()
+        self.update_cursor()
 
     def update_cursor(self):
         """Update window's cursor position as specified by the view."""
