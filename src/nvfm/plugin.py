@@ -8,11 +8,10 @@ from stat import S_ISDIR
 import pynvim
 
 from .color import ColorManager
-from .config import sort_funcs
-from .event import EventManager, Event, Global
+from .event import Event, EventManager, Global
+from .option import Options
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
-
 
 HOST = platform.node()
 USER = getpass.getuser()
@@ -49,6 +48,31 @@ class History:
         return self._history[new_p]
 
 
+class Views:
+
+    def __init__(self):
+        self._views = {}
+
+    def __getitem__(self, key):
+        return self._views[key]
+
+    def __setitem__(self, key, val):
+        self._views[key] = val
+
+    def __delitem__(self, key):
+        self._views[key].remove()
+        del self._views[key]
+
+    def __getattr__(self, key):
+        return getattr(self._views, key)
+
+    def clear_cache(self, exclude=[]):
+        for key, view in list(self.items()):
+            if view in exclude:
+                continue
+            del self[key]
+
+
 @pynvim.plugin
 class Plugin:
 
@@ -59,10 +83,10 @@ class Plugin:
         self._panels = None
         self._main_panel = None
         self._winid_to_win = None
-        self.views = {}
+        self.views = Views()
         self.events = EventManager()
+        self.options = Options()
         self.history = History()
-        self.sort_func = sort_funcs[0]
         self.events.manage(self)
 
     @pynvim.function('NvfmStartup', sync=True)
@@ -120,6 +144,19 @@ class Plugin:
         if path is not None:
             self.go_to(path)
 
+    @pynvim.function('NvfmSet', sync=True)
+    def func_nvfm_set(self, args):
+        key, val = args
+        self.options[key] = val
+
+    @pynvim.function('NvfmRefresh', sync=True)
+    def func_nvfm_refresh(self, args):
+        # TODO Maybe mark as dirty rather than clearing the cache
+        self.views.clear_cache(exclude=[p.view for p in self._panels])
+        for panel in self._panels:
+            panel.view.refresh()
+            panel.update_cursor()
+
     # If sync=True,the syntax highlighting is not applied
     @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')
     def cursor_moved(self, win_id):
@@ -164,5 +201,4 @@ class Plugin:
 
     def _update_status_main(self):
         view = self._main_panel.view
-        self.vim.vars['statusline2'] = \
-            '%d/%d' % (view.focus, len(view.children))
+        self.vim.vars['statusline2'] = f'{view.focus}/{len(view.children)} sort: {self.options["sort"].__name__}'

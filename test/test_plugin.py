@@ -24,6 +24,8 @@ def tree(tmpdir_factory):
         dd
         ee/
             ff/
+                ii/
+                jj/
             gg/
             hh
     ''')
@@ -173,3 +175,36 @@ def test_focus(tree, vim_ctx):
         assert left.cursor == [5, 0]
         assert mid.cursor == [2, 0]
         assert right.cursor == [1, 0]
+
+
+def test_option(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree / 'ee')
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        vim.feedkeys('sa')
+        assert 'aa1' in left.buffer[:][0]
+        assert 'ff' in mid.buffer[:][0]
+        assert 'ii' in right.buffer[:][0]
+        vim.feedkeys('sA')
+        assert 'aa1' in left.buffer[:][-1]
+        assert 'ff' in mid.buffer[:][-1]
+        assert 'ii' in right.buffer[:][-1]
+    # TODO Assert that previously visited dirs also change order
+
+
+def test_refresh_empty_dir(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree / 'cc')
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        vim.call('NvfmRefresh')
+        assert re.match(r'\(.*empty.*\)', '\n'.join(mid.buffer[:]))
+
+
+def test_refresh_all(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree / 'ee')
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        vim.feedkeys('j')
+        vim.feedkeys('sA')
+        vim.feedkeys('j') # focus ff/ again
+        assert 'jj' in right.buffer[:][0]

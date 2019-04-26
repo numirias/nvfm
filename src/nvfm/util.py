@@ -25,11 +25,6 @@ def convert_size(bytes):
         return '%iB' % round(num)
     return '{n:.1f}{unit}'.format(n=num, unit=units[i])
 
-def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
-    # https://stackoverflow.com/a/16090640
-    return [int(text) if text.isdigit() else text.lower()
-            for text in _nsre.split(s)]
-
 def stat_path(path, lstat=True):
     error, stat_res = None, None
     f = path.lstat if lstat else path.stat

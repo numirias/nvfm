@@ -1,4 +1,3 @@
-set nocompatible
 set encoding=utf8
 set laststatus=2
 set scrolloff=5
@@ -38,14 +37,39 @@ hi StatusLineNC    ctermfg=white ctermbg=236 cterm=none
 hi FileMeta ctermfg=243
 hi NvfmMessage ctermfg=246
 
+
+noremap <silent>a <nop>
+noremap <silent>A <nop>
+noremap <silent>d <nop>
+noremap <silent>D <nop>
+noremap <silent>i <nop>
+noremap <silent>I <nop>
+noremap <silent>r <nop>
+noremap <silent>R <nop>
+noremap <silent>s <nop>
+noremap <silent>S <nop>
+noremap <silent>u <nop>
+noremap <silent>U <nop>
+
 noremap <silent>q :qall!<CR>
+noremap <silent> <S-j> 4j
+noremap <silent> <S-k> 4k
+
 noremap <silent>l :call NvfmEnter()<CR>
 noremap <silent>L :call NvfmEnter(v:null, v:true)<CR>
 noremap <silent><CR> :call NvfmEnter()<CR>
 noremap <silent>h :call NvfmEnter('..')<CR>
 noremap <silent>~ :call NvfmEnter($HOME)<CR>
+
 noremap <silent>b :call NvfmHistory(-1)<CR>
 noremap <silent>B :call NvfmHistory(1)<CR>
+
+noremap <silent>sa :call NvfmSet('sort', 'alpha') \| call NvfmRefresh()<CR>
+noremap <silent>sA :call NvfmSet('sort', 'alpha_reverse') \| call NvfmRefresh()<CR>
+noremap <silent>st :call NvfmSet('sort', 'last_modified') \| call NvfmRefresh()<CR>
+noremap <silent>sT :call NvfmSet('sort', 'last_modified_reverse') \| call NvfmRefresh()<CR>
+noremap <silent>ss :call NvfmSet('sort', 'size') \| call NvfmRefresh()<CR>
+noremap <silent>sS :call NvfmSet('sort', 'size_reverse') \| call NvfmRefresh()<CR>
 
 
 let g:statusline1 = 'a'

@@ -54,6 +54,7 @@ class Panel(EventEmitter):
 
         If a matching view doesn't exist, it's created.
         """
+        # TODO View creation doesn't belong in the Panel class
         view = self._plugin.views.get(item)
         if view is None:
             view = make_view(self._plugin, item)

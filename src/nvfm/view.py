@@ -47,7 +47,18 @@ def mode_to_type_str(mode):
     return msg
 
 
-class View:
+class ViewHelpersMixin:
+
+    def draw_message(self, msg, hl_group=None):
+        if hl_group is None:
+            hl_group = 'NvfmMessage'
+        logger.debug(repr(hl_group))
+        buf = self.buf
+        buf[:] = [msg]
+        buf.add_highlight(hl_group, 0, 0, -1, src_id=-1)
+
+
+class View(ViewHelpersMixin):
 
     VIEW_PREFIX = 'nvfm_view:'
     cursor = None
@@ -79,13 +90,13 @@ class View:
     def load_done(self, panel):
         pass
 
-    def draw_message(self, msg, hl_group=None):
-        if hl_group is None:
-            hl_group = 'NvfmMessage'
-        logger.debug(repr(hl_group))
-        buf = self.buf
-        buf[:] = [msg]
-        buf.add_highlight(hl_group, 0, 0, -1, src_id=-1)
+    def refresh(self):
+        # TODO Remove refresh method.
+        pass
+
+    def remove(self):
+        """Called when the view is removed from the view list."""
+        self._plugin.vim.command('bwipeout! %d' % self.buf.number)
 
 
 class MessageView(View):
@@ -163,7 +174,10 @@ class DirectoryView(View):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Line number of focused item
+        # TODO Make sure it can't be set to illegal values?
         self.focus = 1
+        # List of items in directory (of os.DirEntry, not pathlib.Path)
         self.children = None
 
     @property
@@ -172,22 +186,30 @@ class DirectoryView(View):
 
     def buf_created(self):
         super().buf_created()
+        self.draw()
+
+    def draw(self):
         try:
-            self.children = self._list_files(self.path, self._plugin.sort_func)
+            self.children = self._list_files(self.path, self._plugin.options['sort'])
         except OSError as e:
-            # TODO Do we need to catch the OSError anymore?
             self.children = []
             self.draw_message(str(e), 'Error')
             return
         if not self.children:
             self.draw_message('(directory empty)')
             return
-        self.draw()
+        self._render_children()
 
     def load_done(self, panel):
         if self.children:
             # XXX Is this needed every time, or just initially?
             panel.win.request('nvim_win_set_option', 'cursorline', True)
+
+    def refresh(self):
+        # TODO What happens to highlights when redrawing?
+        focused_item = self.focused_item
+        self.draw()
+        self.focused_item = focused_item
 
     @property
     def empty(self):
@@ -202,10 +224,13 @@ class DirectoryView(View):
 
     @focused_item.setter
     def focused_item(self, item):
-        self.focus = [c.name for c in self.children].index(item.name) + 1
+        if item is None:
+            self.focus = 1
+        else:
+            self.focus = [c.name for c in self.children].index(item.name) + 1
 
-    def draw(self):
-        """Render current directory."""
+    def _render_children(self):
+        """Render directory listing."""
         lines = []
         hls = []
         for linenum, child in enumerate(self.children):
@@ -226,7 +251,7 @@ class DirectoryView(View):
     @staticmethod
     def _list_files(path, sort_func):
         """List all files in path."""
-        return sort_func(os.scandir(str(path)))
+        return list(sort_func(os.scandir(str(path))))
 
     @staticmethod
     def _format_line(path_str, stat_res, hl_group):
