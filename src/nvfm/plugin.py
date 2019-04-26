@@ -53,6 +53,7 @@ class Views:
     def __init__(self):
         self._views = {}
 
+    # TODO Are some dunder methods redundant?
     def __getitem__(self, key):
         return self._views[key]
 
@@ -65,12 +66,6 @@ class Views:
 
     def __getattr__(self, key):
         return getattr(self._views, key)
-
-    def clear_cache(self, exclude=[]):
-        for key, view in list(self.items()):
-            if view in exclude:
-                continue
-            del self[key]
 
 
 @pynvim.plugin
@@ -151,10 +146,10 @@ class Plugin:
 
     @pynvim.function('NvfmRefresh', sync=True)
     def func_nvfm_refresh(self, args):
-        # TODO Maybe mark as dirty rather than clearing the cache
-        self.views.clear_cache(exclude=[p.view for p in self._panels])
+        for view in self.views.values():
+            view.dirty = True
         for panel in self._panels:
-            panel.view.refresh()
+            panel.view.finish_loading(panel)
             panel.update_cursor()
 
     # If sync=True,the syntax highlighting is not applied

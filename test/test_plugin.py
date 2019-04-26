@@ -177,7 +177,7 @@ def test_focus(tree, vim_ctx):
         assert right.cursor == [1, 0]
 
 
-def test_option(tree, vim_ctx):
+def test_sort_option(tree, vim_ctx):
     os.environ['NVFM_START_PATH'] = str(tree / 'ee')
     with vim_ctx() as vim:
         left, mid, right = vim.windows
@@ -185,11 +185,12 @@ def test_option(tree, vim_ctx):
         assert 'aa1' in left.buffer[:][0]
         assert 'ff' in mid.buffer[:][0]
         assert 'ii' in right.buffer[:][0]
+        assert vim.current.window.cursor[0] == 1
         vim.feedkeys('sA')
+        assert vim.current.window.cursor[0] == 3
         assert 'aa1' in left.buffer[:][-1]
         assert 'ff' in mid.buffer[:][-1]
         assert 'ii' in right.buffer[:][-1]
-    # TODO Assert that previously visited dirs also change order
 
 
 def test_refresh_empty_dir(tree, vim_ctx):

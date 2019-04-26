@@ -68,6 +68,7 @@ class View(ViewHelpersMixin):
         self._plugin = plugin
         self.path = path
         self.buf = None
+        self.dirty = True
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)
@@ -87,11 +88,12 @@ class View(ViewHelpersMixin):
         if self.path is not None:
             buf.name = self.VIEW_PREFIX + str(self.path)
 
-    def load_done(self, panel):
-        pass
+    def finish_loading(self, panel):
+        self.load_done(panel)
+        self.dirty = False
 
-    def refresh(self):
-        # TODO Remove refresh method.
+    def load_done(self, panel):
+        """This view has been loaded into `panel`."""
         pass
 
     def remove(self):
@@ -106,25 +108,23 @@ class MessageView(View):
         self._hl_group = kwargs.pop('hl_group', None)
         super().__init__(*args, **kwargs)
 
-    def buf_created(self):
-        super().buf_created()
-        self.draw_message(self._message, self._hl_group)
-
     def load_done(self, panel):
         # XXX Is this needed every time, or just initially?
         panel.win.request('nvim_win_set_option', 'wrap', True)
+        if self.dirty:
+            self.draw_message(self._message, self._hl_group)
 
 
 class FileView(View):
 
-    def buf_created(self):
-        super().buf_created()
-        try:
-            self.draw()
-        except OSError as e:
-            self.draw_message(str(e), 'Error')
-            return
-        self._detect_filetype()
+    def load_done(self, panel):
+        if self.dirty:
+            try:
+                self.draw()
+            except OSError as e:
+                self.draw_message(str(e), 'Error')
+                return
+            self._detect_filetype()
 
     def draw(self):
         # TODO Better heuristics to detect binary files
@@ -184,10 +184,6 @@ class DirectoryView(View):
     def cursor(self):
         return [self.focus, 0]
 
-    def buf_created(self):
-        super().buf_created()
-        self.draw()
-
     def draw(self):
         try:
             self.children = self._list_files(self.path, self._plugin.options['sort'])
@@ -201,15 +197,14 @@ class DirectoryView(View):
         self._render_children()
 
     def load_done(self, panel):
+        if self.dirty:
+            # TODO Refactor?
+            focused_item = self.focused_item
+            self.draw()
+            self.focused_item = focused_item
         if self.children:
             # XXX Is this needed every time, or just initially?
             panel.win.request('nvim_win_set_option', 'cursorline', True)
-
-    def refresh(self):
-        # TODO What happens to highlights when redrawing?
-        focused_item = self.focused_item
-        self.draw()
-        self.focused_item = focused_item
 
     @property
     def empty(self):
@@ -217,6 +212,8 @@ class DirectoryView(View):
 
     @property
     def focused_item(self):
+        if not self.children:
+            return None
         try:
             return Path(self.children[self.focus - 1].path)
         except IndexError:

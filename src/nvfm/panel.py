@@ -33,11 +33,12 @@ class Panel(EventEmitter):
             view.buf_created()
         else:
             self._load_buf(view.buf)
-        view.load_done(self)
+        view.finish_loading(self)
         self.emit('view_loaded', self.view)
         self.update_cursor()
 
     def _load_buf(self, buf):
+        """Load buffer `buf` into this panel."""
         self.win.request('nvim_win_set_buf', buf)
 
     def update_cursor(self):
