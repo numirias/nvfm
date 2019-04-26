@@ -12,6 +12,7 @@ from .event import Event, EventManager, Global
 from .option import Options
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
+from .view import Views
 
 HOST = platform.node()
 USER = getpass.getuser()
@@ -48,26 +49,6 @@ class History:
         return self._history[new_p]
 
 
-class Views:
-
-    def __init__(self):
-        self._views = {}
-
-    # TODO Are some dunder methods redundant?
-    def __getitem__(self, key):
-        return self._views[key]
-
-    def __setitem__(self, key, val):
-        self._views[key] = val
-
-    def __delitem__(self, key):
-        self._views[key].remove()
-        del self._views[key]
-
-    def __getattr__(self, key):
-        return getattr(self._views, key)
-
-
 @pynvim.plugin
 class Plugin:
 
@@ -78,7 +59,7 @@ class Plugin:
         self._panels = None
         self._main_panel = None
         self._winid_to_win = None
-        self.views = Views()
+        self.views = Views(self)
         self.events = EventManager()
         self.options = Options()
         self.history = History()
@@ -130,7 +111,7 @@ class Plugin:
     def go_to(self, path):
         """The user enters `target`."""
         logger.debug(('enter', path))
-        self._main_panel.view = self._main_panel.view_by_path(path)
+        self._main_panel.view = self.views[path]
 
     @pynvim.function('NvfmHistory', sync=True)
     def func_nvfm_history(self, args):

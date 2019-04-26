@@ -14,6 +14,32 @@ PREVIEW_SIZE_LIMIT = 10**5
 HEXDUMP_LIMIT = 16 * 256
 
 
+class Views:
+
+    def __init__(self, plugin):
+        self._plugin = plugin
+        self._views = {}
+
+    def __getitem__(self, key):
+        try:
+            return self._views[key]
+        except KeyError:
+            pass
+        view = make_view(self._plugin, key)
+        self._views[key] = view
+        return view
+
+    def __setitem__(self, key, val):
+        self._views[key] = val
+
+    def __delitem__(self, key):
+        self._views[key].remove()
+        del self._views[key]
+
+    def __getattr__(self, key):
+        return getattr(self._views, key)
+
+
 def make_view(plugin, item):
     """Create and return a View() instance that displays `item`."""
     args = (plugin, item)
