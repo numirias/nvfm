@@ -145,7 +145,7 @@ class Plugin:
         self.options[key] = val
 
     @pynvim.function('NvfmRefresh', sync=True)
-    def func_nvfm_refresh(self, args):
+    def func_nvfm_refresh(self, args): # pylint:disable=unused-argument
         """Refresh all views.
 
         This marks all views as dirty and refreshes the visible ones.
@@ -199,4 +199,6 @@ class Plugin:
 
     def _update_status_main(self):
         view = self._main_panel.view
-        self.vim.vars['statusline2'] = f'{view.focus}/{len(view.children)} sort: {self.options["sort"].__name__}'
+        self.vim.vars['statusline2'] = \
+            f'{view.focus}/{len(view.children)} ' \
+            f'sort: {self.options["sort"].__name__}'

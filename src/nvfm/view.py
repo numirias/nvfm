@@ -200,7 +200,8 @@ class DirectoryView(View):
 
     def _draw(self):
         try:
-            self.children = self._list_files(self.path, self._plugin.options['sort'])
+            self.children = self._list_files(
+                self.path, self._plugin.options['sort'])
         except OSError as e:
             self.children = []
             self.draw_message(str(e), 'Error')

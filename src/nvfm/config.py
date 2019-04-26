@@ -23,7 +23,8 @@ def sort_alpha(items):
 
 @sort_func('last_modified')
 def sort_last_modified(items):
-    return reversed(sorted(items, key=lambda x: x.stat(follow_symlinks=False).st_mtime))
+    return reversed(
+        sorted(items, key=lambda x: x.stat(follow_symlinks=False).st_mtime))
 
 
 @sort_func('size')

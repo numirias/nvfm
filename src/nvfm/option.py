@@ -29,8 +29,10 @@ class SortOption(Option):
 
     name = 'sort'
 
-    def default(self):
+    @staticmethod
+    def default():
         return next(iter(sort_funcs.values()))
 
-    def convert(self, val):
+    @staticmethod
+    def convert(val):
         return val if callable(val) else sort_funcs[val]

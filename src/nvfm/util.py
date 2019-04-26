@@ -2,7 +2,6 @@ import logging
 import math
 import os
 from pathlib import Path
-import re
 
 
 def hexdump(bytes, columns=16):
