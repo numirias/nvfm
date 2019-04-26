@@ -180,9 +180,8 @@ class DirectoryView(View):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Line number of focused item
-        # TODO Make sure it can't be set to illegal values?
-        self.focus = 1
+        # Line number of focused item (starts at 1)
+        self.focus = None
         # List of items in directory (of os.DirEntry, not pathlib.Path)
         self.children = None
 
@@ -191,10 +190,13 @@ class DirectoryView(View):
             win.request('nvim_win_set_option', 'cursorline', True)
 
     def draw(self):
-        # TODO Refactor?
-        focused_item = self.focused_item
+        # Only save and restore focus if it has been explicitly set
+        restore_focus = self.focus is not None
+        if restore_focus:
+            focused_item = self.focused_item
         self._draw()
-        self.focused_item = focused_item
+        if restore_focus:
+            self.focused_item = focused_item
 
     def _draw(self):
         try:
@@ -210,7 +212,7 @@ class DirectoryView(View):
 
     @property
     def cursor(self):
-        return [self.focus, 0]
+        return [self.focus or 1, 0]
 
     @property
     def empty(self):
@@ -218,19 +220,19 @@ class DirectoryView(View):
 
     @property
     def focused_item(self):
+        """The currently focused item. `None` if no children."""
         if not self.children:
             return None
         try:
-            return Path(self.children[self.focus - 1].path)
+            return Path(self.children[(self.focus or 0) - 1].path)
         except IndexError:
             return None
 
     @focused_item.setter
     def focused_item(self, item):
         if item is None:
-            self.focus = 1
-        else:
-            self.focus = [c.name for c in self.children].index(item.name) + 1
+            return
+        self.focus = [c.name for c in self.children].index(item.name) + 1
 
     def _render_children(self):
         """Render directory listing."""

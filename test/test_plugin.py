@@ -185,9 +185,9 @@ def test_sort_option(tree, vim_ctx):
         assert 'aa1' in left.buffer[:][0]
         assert 'ff' in mid.buffer[:][0]
         assert 'ii' in right.buffer[:][0]
-        assert vim.current.window.cursor[0] == 1
+        assert mid.cursor[0] == 1
         vim.feedkeys('sA')
-        assert vim.current.window.cursor[0] == 3
+        assert mid.cursor[0] == 3
         assert 'aa1' in left.buffer[:][-1]
         assert 'ff' in mid.buffer[:][-1]
         assert 'ii' in right.buffer[:][-1]
@@ -209,3 +209,18 @@ def test_refresh_all(tree, vim_ctx):
         vim.feedkeys('sA')
         vim.feedkeys('j') # focus ff/ again
         assert 'jj' in right.buffer[:][0]
+        # Since the cursor in the right window is at its default position and
+        # was never explicitly set, it should remain at the top position, even
+        # after the sorting order changed.
+        assert right.cursor[0] == 1
+
+
+def test_dont_save_default_focus(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree / 'ee')
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        assert right.cursor[0] == 1
+        vim.feedkeys('sa')
+        assert right.cursor[0] == 1
+        vim.feedkeys('sA')
+        assert right.cursor[0] == 1
