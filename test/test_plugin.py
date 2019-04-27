@@ -120,21 +120,26 @@ def test_format_line_extra3(tree):
 def test_history():
     history = History()
     history.add('foo')
-    assert history.go(-1) is None
-    assert history.go(1) is None
+    with pytest.raises(IndexError):
+        assert history.go(-1)
+    with pytest.raises(IndexError):
+        assert history.go(1)
     assert history.go(0) == 'foo'
     history.add('bar')
     assert history.go(0) == 'bar'
     assert history.go(-1) == 'foo'
-    assert history.go(-1) is None
+    with pytest.raises(IndexError):
+        assert history.go(-1)
     history.add('baz')
     history.add('spam')
     assert history.all == ['foo', 'baz', 'spam']
     assert history.go(0) == 'spam'
-    assert history.go(1) is None
+    with pytest.raises(IndexError):
+        assert history.go(1)
     assert history.go(-1) == 'baz'
     assert history.go(-1) == 'foo'
-    assert history.go(-1) is None
+    with pytest.raises(IndexError):
+        assert history.go(-1)
     assert history.go(1) == 'baz'
     history.add('ham')
     assert history.go(0) == 'ham'

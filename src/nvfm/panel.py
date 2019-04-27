@@ -9,11 +9,11 @@ class Panel(EventEmitter):
     """A panel corresponds to a window that displays a directory or file
     preview."""
 
-    def __init__(self, plugin, win):
-        self._plugin = plugin
+    def __init__(self, state, win):
+        self._state = state
         self.win = win
         self._view = None
-        plugin.events.manage(self)
+        state.events.manage(self)
 
     def __repr__(self):
         return '%s(win=%s)' % (self.__class__.__name__, self.win)
@@ -72,9 +72,9 @@ class LeftPanel(Panel):
         """A view was loaded in the main panel. Preview its parent."""
         path = view.path
         if path == Path('/'):
-            self.view = self._plugin.views[None]
+            self.view = self._state.views[None]
         else:
-            self.view = self._plugin.views[path.parent]
+            self.view = self._state.views[path.parent]
             self.view.focused_item = path
             self.update_cursor()
 
@@ -83,13 +83,13 @@ class RightPanel(Panel):
 
     @MainPanel.on('focus_changed')
     def _main__focus_changed(self, view):
-        self.view = self._plugin.views[view.focused_item]
+        self.view = self._state.views[view.focused_item]
 
     @MainPanel.on('view_loaded')
     def _main_view_loaded(self, view):
         """A view was loaded in the main panel. Preview its focused item."""
         if isinstance(view, DirectoryView):
             if view.empty:
-                self.view = self._plugin.views[None]
+                self.view = self._state.views[None]
             else:
-                self.view = self._plugin.views[view.focused_item]
+                self.view = self._state.views[view.focused_item]

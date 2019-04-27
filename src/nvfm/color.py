@@ -83,8 +83,9 @@ class ColorManager:
     def __init__(self, vim):
         self._vim = vim
         self._colors, self._colors_special = parse_colors()
+        self._define_highlights()
 
-    def define_highlights(self):
+    def _define_highlights(self):
         """Define highlight groups for file coloring."""
         for ansi_code in dict.fromkeys([*self._colors.values(),
                                         *self._colors_special.values()]):

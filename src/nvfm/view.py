@@ -16,8 +16,9 @@ HEXDUMP_LIMIT = 16 * 256
 
 class Views:
 
-    def __init__(self, plugin):
-        self._plugin = plugin
+    def __init__(self, state, vim):
+        self._state = state
+        self._vim = vim
         self._views = {}
 
     def __getitem__(self, key):
@@ -25,7 +26,7 @@ class Views:
             return self._views[key]
         except KeyError:
             pass
-        view = make_view(self._plugin, key)
+        view = make_view(self._state, self._vim, key)
         self._views[key] = view
         return view
 
@@ -40,9 +41,9 @@ class Views:
         return getattr(self._views, key)
 
 
-def make_view(plugin, item):
+def make_view(state, vim, item):
     """Create and return a View() instance that displays `item`."""
-    args = (plugin, item)
+    args = (state, vim, item)
     if item is None:
         # TODO Use the same view always
         return MessageView(*args, message='(nothing to show)')
@@ -89,9 +90,10 @@ class View(ViewHelpersMixin):
     VIEW_PREFIX = 'nvfm_view:'
     cursor = None
 
-    def __init__(self, plugin, path):
+    def __init__(self, state, vim, path):
         logger.debug(('new view', path))
-        self._plugin = plugin
+        self._state = state
+        self._vim = vim
         self.path = path
         self.buf = self._create_buf()
         self._buf_configured = False
@@ -101,7 +103,7 @@ class View(ViewHelpersMixin):
         return '%s(%s)' % (self.__class__.__name__, self.path)
 
     def _create_buf(self):
-        return self._plugin.vim.request(
+        return self._vim.request(
             'nvim_create_buf',
             True, # listed
             False, # scratch
@@ -132,7 +134,7 @@ class View(ViewHelpersMixin):
 
     def remove(self):
         """Called when the view is removed from the view list."""
-        self._plugin.vim.command('bwipeout! %d' % self.buf.number)
+        self._vim.command('bwipeout! %d' % self.buf.number)
 
 
 class MessageView(View):
@@ -181,10 +183,10 @@ class FileView(View):
         self._detect_filetype()
 
     def _detect_filetype(self):
-        cur = self._plugin.vim.current
+        cur = self._vim.current
         buf_save = cur.buffer
         cur.buffer = self.buf
-        self._plugin.vim.command('filetype detect')
+        self._vim.command('filetype detect')
         cur.buffer = buf_save
 
     @staticmethod
@@ -227,7 +229,7 @@ class DirectoryView(View):
     def _draw(self):
         try:
             self.children = self._list_files(
-                self.path, self._plugin.options['sort'])
+                self.path, self._state.options['sort'])
         except OSError as e:
             self.children = []
             self.draw_message(str(e), 'Error')
@@ -271,7 +273,7 @@ class DirectoryView(View):
             except OSError as stat_error:
                 line = str(stat_error)
             else:
-                hl_group = self._plugin.colors.file_hl_group(child, stat_res)
+                hl_group = self._state.colors.file_hl_group(child, stat_res)
                 line, line_hls = self._format_line(child.path, stat_res,
                                                    hl_group)
                 for hl in line_hls:
