@@ -12,7 +12,7 @@ ln -s $rplugin_path $tmp/nvfm/rplugin/python3/nvfm
 
 export NVIM_RPLUGIN_MANIFEST=$tmp/rplugin.vim
 export NVFM_RUNTIME=$tmp/nvfm/
-nvim -u <(cat <<-END
+nvim --headless -u <(cat <<-END
     let &rtp .= "," . \$NVFM_RUNTIME
     au VimEnter * UpdateRemotePlugins | qall!
 END

@@ -106,12 +106,26 @@ class Plugin:
         for panel in self._state.panels:
             panel.refresh()
 
+    @pynvim.function('NvfmFilter', sync=True)
+    def func_nvfm_filter(self, args):
+        query = args[0]
+        if query:
+            self._state.main_panel.view.filter(query)
+        else:
+            self._state.main_panel.view.clear_filter()
+        self._state.events.publish(
+            Event('cursor_moved', Global), self._state.main_panel.win)
+        # Required because the screen isn't redrawn during user input
+        self._vim.command('redraw')
+
+    # TODO eval cursor position to avoid RPC roundtrip?
     # If sync=True,the syntax highlighting is not applied
     @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')
     def cursor_moved(self, win_id):
         # TODO Error when moving around .dotfiles/LS_COLORS
         self._state.events.publish(
             Event('cursor_moved', Global), self._state.wins[win_id])
+        # TODO Do tabline/statusline update elsewhere, e.g. on focus_changed
         self._update_tabline()
         self._update_status_main()
 
@@ -152,5 +166,5 @@ class Plugin:
     def _update_status_main(self):
         view = self._state.main_panel.view
         self._vim.vars['statusline2'] = \
-            f'{view.focus}/{len(view.children)} ' \
+            f'{view.focus}/{len(view.items)} ' \
             f'sort: {self._state.options["sort"].__name__}'

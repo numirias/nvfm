@@ -1,4 +1,5 @@
 # -*- coding: future_fstrings -*-
+import itertools
 import os
 from pathlib import Path
 import stat
@@ -129,6 +130,9 @@ class View(ViewHelpersMixin):
             self.draw()
             self.dirty = False
 
+    def unload(self):
+        pass
+
     def draw(self):
         raise NotImplementedError()
 
@@ -208,14 +212,19 @@ class DirectoryView(View):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # TODO Make focus private?
         # Line number of focused item (starts at 1)
         self.focus = None
         # List of items in directory (of os.DirEntry, not pathlib.Path)
-        self.children = None
+        self.items = None
+        self._folds = None
 
     def configure_win(self, win):
-        if self.children:
+        if self.items:
             win.request('nvim_win_set_option', 'cursorline', True)
+
+    def unload(self):
+        self.clear_filter()
 
     def draw(self):
         # Only save and restore focus if it has been explicitly set
@@ -228,32 +237,69 @@ class DirectoryView(View):
 
     def _draw(self):
         try:
-            self.children = self._list_files(
+            self.items = self._list_files(
                 self.path, self._state.options['sort'])
         except OSError as e:
-            self.children = []
+            self.items = []
             self.draw_message(str(e), 'Error')
             return
-        if not self.children:
+        if not self.items:
             self.draw_message('(directory empty)')
             return
-        self._render_children()
+        self._render_items()
 
     @property
     def cursor(self):
         return [self.focus or 1, 0]
 
+    @cursor.setter
+    def cursor(self, pos):
+        self._set_focus(pos[0])
+        if pos != self.cursor:
+            raise CursorAdjusted()
+
+    def _set_focus(self, linenum):
+        """Set focus to `linenum` if it is a legal line number."""
+        if not self._folds:
+            # Set requested line because there are no folds
+            self.focus = linenum
+            return
+        for start, stop in self._folds:
+            if start <= linenum <= stop:
+                # Determine candidate line numbers that aren't in a fold
+                if self.focus is None or linenum < self.focus:
+                    candidates = (start - 1, stop + 1)
+                else:
+                    candidates = (stop + 1, start - 1)
+                break
+        else:
+            # Set requested line because it's not in a fold
+            self.focus = linenum
+            return
+        for c in candidates:
+            if 1 <= c <= len(self.items):
+                # Use this candidate because it's not out of bounds
+                self.focus = c
+                return
+        # All candidates are out of bounds
+        self.focus = None
+        logger.debug('cursor moved oob')
+
     @property
     def empty(self):
-        return not self.children
+        return not self.items
 
     @property
     def focused_item(self):
-        """The currently focused item. `None` if no children."""
-        if not self.children:
+        """Return the currently focused item. Return `None` if no items exist
+        or all items are hidden."""
+        if not self.items:
+            return None
+        # Check if all items are hidden (a fold over all lines)
+        if self._folds == [(1, len(self.items))]:
             return None
         try:
-            return Path(self.children[(self.focus or 0) - 1].path)
+            return Path(self.items[(self.focus or 0) - 1].path)
         except IndexError:
             return None
 
@@ -261,20 +307,20 @@ class DirectoryView(View):
     def focused_item(self, item):
         if item is None:
             return
-        self.focus = [c.name for c in self.children].index(item.name) + 1
+        self.focus = [c.name for c in self.items].index(item.name) + 1
 
-    def _render_children(self):
+    def _render_items(self):
         """Render directory listing."""
         lines = []
         hls = []
-        for linenum, child in enumerate(self.children):
+        for linenum, item in enumerate(self.items):
             try:
-                stat_res = child.stat(follow_symlinks=False)
+                stat_res = item.stat(follow_symlinks=False)
             except OSError as stat_error:
                 line = str(stat_error)
             else:
-                hl_group = self._state.colors.file_hl_group(child, stat_res)
-                line, line_hls = self._format_line(child.path, stat_res,
+                hl_group = self._state.colors.file_hl_group(item, stat_res)
+                line, line_hls = self._format_line(item.path, stat_res,
                                                    hl_group)
                 for hl in line_hls:
                     hls.append((linenum, *hl))
@@ -317,20 +363,20 @@ class DirectoryView(View):
             if not S_ISDIR(mode):
                 break
             try:
-                children = os.scandir(path_str)
+                items = os.scandir(path_str)
             except OSError:
                 break
             try:
-                first = next(children)
+                first = next(items)
             except StopIteration:
                 extra += ' +0'
                 break
             try:
-                next(children)
+                next(items)
             except StopIteration:
                 pass
             else:
-                extra += ' +' + str(2 + sum(1 for _ in children))
+                extra += ' +' + str(2 + sum(1 for _ in items))
                 break
             path_str = os.path.join(path_str, first.name)
             try:
@@ -356,3 +402,42 @@ class DirectoryView(View):
             # TODO Bulk
             logger.debug(('add_highlight', hl_group, linenum))
             self.buf.add_highlight(hl_group, linenum, start, stop, src_id=-1)
+
+    def filter(self, query):
+        """Hide all items that don't match `query`.
+
+        Hiding is done by adding vim folds.
+        """
+        # TODO Handle changed sorting order and filtering
+        self.clear_filter()
+        folds = []
+        # The line number in which the current fold started
+        start_idx = None
+        first_result = None
+        for idx, item in enumerate(itertools.chain(self.items, (None,))):
+            if item is None or query in item.name.lower():
+                if first_result is None:
+                    first_result = idx + 1
+                if start_idx is not None:
+                    folds.append((start_idx + 1, idx))
+                    start_idx = None
+            else:
+                if start_idx is None:
+                    start_idx = idx
+        for start, end in folds:
+            # TODO Bulk request
+            self._vim.command(':%d,%dfold' % (start, end))
+        if first_result is not None:
+            # TODO Doesn't reliably focus the first result
+            self.focus = first_result
+        self._folds = folds
+
+    def clear_filter(self):
+        if self._folds:
+            # Eliminate all folds (zE)
+            self._vim.command('normal! zE')
+            self._folds = None
+
+
+class CursorAdjusted(Exception):
+    pass

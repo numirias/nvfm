@@ -2,7 +2,8 @@
 from pathlib import Path
 
 from .event import EventEmitter, Global
-from .view import DirectoryView
+from .util import logger
+from .view import DirectoryView, CursorAdjusted
 
 
 class Panel(EventEmitter):
@@ -26,42 +27,44 @@ class Panel(EventEmitter):
     def view(self, view):
         if self._view is view:
             return
+        if self._view is not None:
+            self._view.unload()
         self._view = view
         self.win.request('nvim_win_set_buf', view.buf)
         view.configure_buf()
         view.load()
         view.configure_win(self.win)
         self.emit('view_loaded', self.view)
-        self.update_cursor()
+        self.update_vim_cursor()
 
     def refresh(self):
         # TODO Refactor
         self.view.load()
-        self.update_cursor()
+        self.update_vim_cursor()
 
-    def update_cursor(self):
+    def update_vim_cursor(self):
         """Update window's cursor position as specified by the view."""
         cursor = self.view.cursor
-        if cursor is not None:
-            # Note: The updated cursorline position might not be immediately
-            # visible if another event didn't trigger the draw (like a tabline
-            # update)
-            self.win.cursor = cursor
+        if cursor is None:
+            return
+        # Note: The updated cursorline might not be immediately visible if
+        # another event didn't trigger the draw (like a tabline update)
+        logger.debug(('set cursor', self, cursor))
+        self.win.cursor = cursor
 
 
 class MainPanel(Panel):
 
     @Global.on('cursor_moved')
     def _cursor_moved(self, win):
+        """The user has changed the focus."""
         if win is not self.win:
+            # The cursor moved in another panel's window
             return
-        linenum, col = win.cursor
-        # Ensure cursor is always in the left-most column
-        if col > 0:
-            self.win.cursor = [linenum, 0]
-        if linenum == self.view.focus:
-            return
-        self.view.focus = linenum
+        try:
+            self.view.cursor = win.cursor
+        except CursorAdjusted:
+            self.update_vim_cursor()
         self.emit('focus_changed', self.view)
 
 
@@ -76,13 +79,13 @@ class LeftPanel(Panel):
         else:
             self.view = self._state.views[path.parent]
             self.view.focused_item = path
-            self.update_cursor()
+            self.update_vim_cursor()
 
 
 class RightPanel(Panel):
 
     @MainPanel.on('focus_changed')
-    def _main__focus_changed(self, view):
+    def _main_focus_changed(self, view):
         self.view = self._state.views[view.focused_item]
 
     @MainPanel.on('view_loaded')

@@ -27,6 +27,13 @@ def tree(tmpdir_factory):
                 ii/
                 jj/
             gg/
+                aa/
+                bbXXbb/
+                    qqq/
+                cc
+                gx
+                XX/
+                zz/
             hh
     ''')
     return root / 'base'
@@ -229,3 +236,36 @@ def test_dont_save_default_focus(tree, vim_ctx):
         assert right.cursor[0] == 1
         vim.feedkeys('sA')
         assert right.cursor[0] == 1
+
+
+def test_filter(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree / 'ee/gg')
+    with vim_ctx() as vim:
+        def openfolds():
+            vim.vars['openfolds'] = []
+            vim.command('folddoopen call add(g:openfolds, line("."))')
+            return vim.vars['openfolds']
+        left, mid, right = vim.windows
+        vim.feedkeys('fx') # filter for "x" but don't confirm yet
+        assert 'qqq' in right.buffer[:][0]
+        vim.feedkeys('\n') # confirm filter
+        assert mid.cursor[0] == 2 # assert that cursor has jumped to first result
+        assert openfolds() == [2, 4, 5]
+        vim.feedkeys('fxx\n') # search for "xx"
+        assert openfolds() == [2, 5]
+        vim.feedkeys('\x1b') # clear search with esc
+        assert openfolds() == list(range(1, 7))
+        vim.feedkeys('fx\n') # search for "x"
+        assert openfolds() == [2, 4, 5]
+        vim.feedkeys('hl') # go to previous dir and back
+        assert openfolds() == list(range(1, 7)) # assert that search is cleared
+        vim.feedkeys('ffail\n') # search for "fail"
+        assert openfolds() == []
+
+
+def test_cursor_adjustment(tree, vim_ctx):
+    os.environ['NVFM_START_PATH'] = str(tree)
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        mid.cursor = [1, 2]
+        assert mid.cursor == [1, 0]
