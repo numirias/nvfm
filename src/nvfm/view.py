@@ -403,7 +403,7 @@ class DirectoryView(View):
             logger.debug(('add_highlight', hl_group, linenum))
             self.buf.add_highlight(hl_group, linenum, start, stop, src_id=-1)
 
-    def filter(self, query):
+    def filter(self, func, query):
         """Hide all items that don't match `query`.
 
         Hiding is done by adding vim folds.
@@ -415,7 +415,7 @@ class DirectoryView(View):
         start_idx = None
         first_result = None
         for idx, item in enumerate(itertools.chain(self.items, (None,))):
-            if item is None or query in item.name.lower():
+            if item is None or func(query, item):
                 if first_result is None:
                     first_result = idx + 1
                 if start_idx is not None:

@@ -8,6 +8,7 @@ from stat import S_ISDIR
 import pynvim
 
 from .color import ColorManager
+from .config import filter_funcs
 from .event import Event, EventManager, Global
 from .history import History
 from .option import Options
@@ -109,10 +110,11 @@ class Plugin:
     @pynvim.function('NvfmFilter', sync=True)
     def func_nvfm_filter(self, args):
         query = args[0]
-        if query:
-            self._state.main_panel.view.filter(query)
-        else:
+        if not args[0]:
             self._state.main_panel.view.clear_filter()
+        else:
+            method = args[1] if len(args) > 1 else 'standard'
+            self._state.main_panel.view.filter(filter_funcs[method], query)
         self._state.events.publish(
             Event('cursor_moved', Global), self._state.main_panel.win)
         # Required because the screen isn't redrawn during user input

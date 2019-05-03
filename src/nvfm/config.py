@@ -12,6 +12,15 @@ def sort_func(name):
     return wrapper
 
 
+filter_funcs = OrderedDict()
+
+def filter_func(name):
+    def wrapper(f):
+        filter_funcs[name] = f
+        return f
+    return wrapper
+
+
 @sort_func('alpha')
 def sort_alpha(items):
     locale_ = locale.getlocale()
@@ -30,3 +39,8 @@ def sort_last_modified(items):
 @sort_func('size')
 def sort_size(items):
     return sorted(items, key=lambda x: x.stat(follow_symlinks=False).st_size)
+
+
+@filter_func('standard')
+def filter_standard(query, candidate):
+    return query.lower() in candidate.name.lower()
