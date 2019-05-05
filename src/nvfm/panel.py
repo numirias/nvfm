@@ -10,11 +10,11 @@ class Panel(EventEmitter):
     """A panel corresponds to a window that displays a directory or file
     preview."""
 
-    def __init__(self, state, win):
-        self._state = state
+    def __init__(self, session, win):
+        self._s = session
         self.win = win
         self._view = EmptyView()
-        state.events.manage(self)
+        session.events.manage(self)
 
     def __repr__(self):
         return '%s(win=%s)' % (self.__class__.__name__, self.win)
@@ -36,8 +36,7 @@ class Panel(EventEmitter):
         self.emit('view_loaded', self.view)
         self.update_vim_cursor()
 
-    def refresh(self):
-        # TODO Refactor
+    def reload_view(self):
         self.view.load()
         self.update_vim_cursor()
 
@@ -74,9 +73,9 @@ class LeftPanel(Panel):
         """A view was loaded in the main panel. Preview its parent."""
         path = view.path
         if path == Path('/'):
-            self.view = self._state.views[None]
+            self.view = self._s.views[None]
         else:
-            self.view = self._state.views[path.parent]
+            self.view = self._s.views[path.parent]
             self.view.focused_item = path
             self.update_vim_cursor()
 
@@ -85,13 +84,13 @@ class RightPanel(Panel):
 
     @MainPanel.on('focus_changed')
     def _main_focus_changed(self, view):
-        self.view = self._state.views[view.focused_item]
+        self.view = self._s.views[view.focused_item]
 
     @MainPanel.on('view_loaded')
     def _main_view_loaded(self, view):
         """A view was loaded in the main panel. Preview its focused item."""
         if isinstance(view, DirectoryView):
             if view.empty:
-                self.view = self._state.views[None]
+                self.view = self._s.views[None]
             else:
-                self.view = self._state.views[view.focused_item]
+                self.view = self._s.views[view.focused_item]

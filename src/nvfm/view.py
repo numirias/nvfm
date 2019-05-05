@@ -17,8 +17,8 @@ HEXDUMP_LIMIT = 16 * 256
 
 class Views:
 
-    def __init__(self, state, vim):
-        self._state = state
+    def __init__(self, session, vim):
+        self._s = session
         self._vim = vim
         self._views = {}
 
@@ -27,7 +27,7 @@ class Views:
             return self._views[key]
         except KeyError:
             pass
-        view = make_view(self._state, self._vim, key)
+        view = make_view(self._s, self._vim, key)
         self._views[key] = view
         return view
 
@@ -41,10 +41,14 @@ class Views:
     def __getattr__(self, key):
         return getattr(self._views, key)
 
+    def mark_all_dirty(self):
+        for view in self._views.values():
+            view.dirty = True
 
-def make_view(state, vim, item):
+
+def make_view(session, vim, item):
     """Create and return a View() instance that displays `item`."""
-    args = (state, vim, item)
+    args = (session, vim, item)
     if item is None:
         # TODO Use the same view always
         return MessageView(*args, message='(nothing to show)')
@@ -91,9 +95,9 @@ class View(ViewHelpersMixin):
     VIEW_PREFIX = 'nvfm_view:'
     cursor = None
 
-    def __init__(self, state, vim, path):
+    def __init__(self, session, vim, path):
         logger.debug(('new view', path))
-        self._state = state
+        self._s = session
         self._vim = vim
         self.path = path
         self.buf = self._create_buf()
@@ -245,7 +249,7 @@ class DirectoryView(View):
     def _draw(self):
         try:
             self.items = self._list_files(
-                self.path, self._state.options['sort'])
+                self.path, self._s.options['sort'])
         except OSError as e:
             self.items = []
             self.draw_message(str(e), 'Error')
@@ -329,8 +333,8 @@ class DirectoryView(View):
                 line, line_hls = self._format_line(
                     item.path,
                     stat_res,
-                    self._state.colors.file_hl_group(item, stat_res),
-                    self._state.options['columns'],
+                    self._s.colors.file_hl_group(item, stat_res),
+                    self._s.options['columns'],
                 )
                 for hl in line_hls:
                     hls.append((linenum, *hl))
