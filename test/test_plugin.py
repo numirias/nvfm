@@ -4,7 +4,8 @@ import re
 
 import pytest
 
-from nvfm.plugin import Plugin, History
+from nvfm.directory_view import format_line
+from nvfm.plugin import History, Plugin
 from nvfm.util import stat_path
 from nvfm.view import DirectoryView
 
@@ -105,7 +106,7 @@ def test_format_line_extra(tree):
     """If a dir has only one child, show the child in the dir view"""
     path = tree / 'aa1'
     stat_res, stat_error = stat_path(path)
-    line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group', [])
+    line, hls = format_line(str(path), stat_res, 'some_hl_group', '')
     assert 'aa1/aa2/aa3' in line
 
 
@@ -113,14 +114,14 @@ def test_format_line_extra2(tree):
     """Display number of items in a directory"""
     path = tree / 'ee'
     stat_res, stat_error = stat_path(path)
-    line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group', [])
+    line, hls = format_line(str(path), stat_res, 'some_hl_group', '')
     assert 'ee/ +3' in line
 
 
 def test_format_line_extra3(tree):
     path = tree / 'cc'
     stat_res, stat_error = stat_path(path)
-    line, hls = DirectoryView._format_line(str(path), stat_res, 'some_hl_group', [])
+    line, hls = format_line(str(path), stat_res, 'some_hl_group', '')
     assert 'cc/ +0' in line
 
 

@@ -23,6 +23,7 @@ class Event:
         return func
 
 
+# XXX Is an EventEmitter class needed?
 class EventEmitter:
 
     _event_manager = None

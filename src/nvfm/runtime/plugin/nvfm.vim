@@ -116,8 +116,9 @@ function Startup()
     vsplit
     exec 2 . "wincmd w"
 
+    " TODO Rename
     call NvfmStartup()
-    call NvfmSet('columns', ['mode', 'size'])
+    " [Set options here]
     call NvfmEnter($NVFM_START_PATH)
 endfunction
 

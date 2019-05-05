@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 from pathlib import Path
 
@@ -12,17 +11,6 @@ def hexdump(bytes, columns=16):
                input=bytes)
     data = text.stdout
     return data
-
-def convert_size(bytes):
-    if not bytes:
-        return '0'
-    units = ('', 'K', 'M', 'G', 'T', 'P')
-    i = int(math.floor(math.log(bytes, 1024)))
-    power = math.pow(1024, i)
-    num = round(bytes / power, 2)
-    if i == 0:
-        return '%iB' % round(num)
-    return '{n:.1f}{unit}'.format(n=num, unit=units[i])
 
 def stat_path(path, lstat=True):
     error, stat_res = None, None

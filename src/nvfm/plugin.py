@@ -13,7 +13,7 @@ from .history import History
 from .option import Options
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
-from .view import Views, DirectoryView
+from .view import DirectoryView, Views
 
 HOST = platform.node()
 USER = getpass.getuser()
@@ -170,6 +170,6 @@ class Plugin:
 
     def _update_status_main(self):
         view = self._s.main_panel.view
-        self._vim.vars['statusline2'] = \
+        self._vim.vars['statusline1'] = \
             f'{view.focus}/{len(view.items)} ' \
-            f'sort: {self._s.options["sort"].__name__}'
+            f'sort: {self._s.options["sort"].name}'

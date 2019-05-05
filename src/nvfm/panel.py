@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .event import EventEmitter, Global
 from .util import logger
-from .view import CursorAdjusted, DirectoryView, EmptyView
+from .view import DirectoryView, EmptyView
 
 
 class Panel(EventEmitter):
@@ -59,11 +59,13 @@ class MainPanel(Panel):
         if win is not self.win:
             # The cursor moved in another panel's window
             return
-        try:
-            self.view.cursor = win.cursor
-        except CursorAdjusted:
-            self.update_vim_cursor()
+        self.view.cursor = win.cursor
         self.emit('focus_changed', self.view)
+
+    @DirectoryView.on('cursor_adjusted')
+    def _cursor_adjusted(self, view):
+        if view is self._view:
+            self.update_vim_cursor()
 
 
 class LeftPanel(Panel):
@@ -77,6 +79,7 @@ class LeftPanel(Panel):
         else:
             self.view = self._s.views[path.parent]
             self.view.focused_item = path
+            # TODO Work with cursor_adjusted event
             self.update_vim_cursor()
 
 
