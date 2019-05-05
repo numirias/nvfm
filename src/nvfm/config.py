@@ -1,6 +1,8 @@
 from collections import OrderedDict
 import locale
+import stat
 
+from .util import convert_size
 
 sort_funcs = OrderedDict()
 
@@ -44,3 +46,17 @@ def sort_size(items):
 @filter_func('standard')
 def filter_standard(query, candidate):
     return query.lower() in candidate.name.lower()
+
+
+def format_meta(stat_res, columns):
+    from .util import logger
+    logger.debug(('cols', columns))
+    formatters = {
+        'mode': '{mode}',
+        'size': '{size:>7}',
+    }
+    s = ''.join([formatters[c] for c in columns])
+    return s.format(
+        mode=stat.filemode(stat_res.st_mode),
+        size=convert_size(stat_res.st_size),
+    )

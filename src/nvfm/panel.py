@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .event import EventEmitter, Global
 from .util import logger
-from .view import DirectoryView, CursorAdjusted
+from .view import CursorAdjusted, DirectoryView, EmptyView
 
 
 class Panel(EventEmitter):
@@ -13,7 +13,7 @@ class Panel(EventEmitter):
     def __init__(self, state, win):
         self._state = state
         self.win = win
-        self._view = None
+        self._view = EmptyView()
         state.events.manage(self)
 
     def __repr__(self):
@@ -27,8 +27,7 @@ class Panel(EventEmitter):
     def view(self, view):
         if self._view is view:
             return
-        if self._view is not None:
-            self._view.unload()
+        self._view.unload()
         self._view = view
         self.win.request('nvim_win_set_buf', view.buf)
         view.configure_buf()

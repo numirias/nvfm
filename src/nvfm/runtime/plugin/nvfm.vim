@@ -72,6 +72,7 @@ noremap <silent>~ :call NvfmEnter($HOME)<CR>
 noremap <silent>gh :call NvfmEnter($HOME)<CR>
 noremap <silent>gr :call NvfmEnter('/')<CR>
 
+nnoremap <silent>r :call NvfmRefresh()<CR>
 nnoremap <silent>e :call ViewFile()<CR>
 
 noremap <silent>b :call NvfmHistory(-1)<CR>
@@ -111,13 +112,13 @@ let g:statusline3 = 'c'
 
 
 function Startup()
-    "TODO Needed?
-    " setlocal bufhidden=wipe
     vsplit
     vsplit
     exec 2 . "wincmd w"
 
     call NvfmStartup()
+    call NvfmSet('columns', ['mode', 'size'])
+    call NvfmEnter($NVFM_START_PATH)
 endfunction
 
 au VimEnter * call Startup()

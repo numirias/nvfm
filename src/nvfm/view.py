@@ -2,11 +2,11 @@
 import itertools
 import os
 from pathlib import Path
-import stat
 from stat import (S_ISBLK, S_ISCHR, S_ISDIR, S_ISFIFO, S_ISLNK, S_ISREG,
                   S_ISSOCK)
 
-from .util import convert_size, hexdump, logger, stat_path
+from .util import hexdump, logger, stat_path
+from .config import format_meta
 
 # Files above this size will be truncated before preview
 PREVIEW_SIZE_LIMIT = 10**5
@@ -134,11 +134,18 @@ class View(ViewHelpersMixin):
         pass
 
     def draw(self):
-        raise NotImplementedError()
+        pass
 
     def remove(self):
         """Called when the view is removed from the view list."""
         self._vim.command('bwipeout! %d' % self.buf.number)
+
+
+class EmptyView(View):
+
+    # pylint:disable=super-init-not-called
+    def __init__(self):
+        self.path = Path(os.getcwd())
 
 
 class MessageView(View):
@@ -319,9 +326,12 @@ class DirectoryView(View):
             except OSError as stat_error:
                 line = str(stat_error)
             else:
-                hl_group = self._state.colors.file_hl_group(item, stat_res)
-                line, line_hls = self._format_line(item.path, stat_res,
-                                                   hl_group)
+                line, line_hls = self._format_line(
+                    item.path,
+                    stat_res,
+                    self._state.colors.file_hl_group(item, stat_res),
+                    self._state.options['columns'],
+                )
                 for hl in line_hls:
                     hls.append((linenum, *hl))
             lines.append(line)
@@ -334,11 +344,11 @@ class DirectoryView(View):
         return list(sort_func(os.scandir(str(path))))
 
     @staticmethod
-    def _format_line(path_str, stat_res, hl_group):
+    def _format_line(path_str, stat_res, hl_group, columns):
         # TODO Orphaned symlink
         mode = stat_res.st_mode
-        size = convert_size(stat_res.st_size)
-        line = stat.filemode(mode) + ' ' + size.rjust(6) + ' '
+        meta = format_meta(stat_res, columns)
+        line = meta + ' '
         hls = []
         extra = None
         name = Path(path_str).name
@@ -353,7 +363,7 @@ class DirectoryView(View):
         if extra:
             hls.append(('FileMeta', len(line), len(line) + len(extra)))
             line += extra
-        hls.append(('FileMeta', 0, 10))
+        hls.append(('FileMeta', 0, len(meta)))
         return line, hls
 
     @staticmethod

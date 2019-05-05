@@ -15,8 +15,10 @@ class Options:
 
 class Option:
 
+    default = None
+
     def __init__(self):
-        self._val = self.convert(self.default())
+        self._val = self.convert(self.default)
 
     def set(self, val):
         self._val = self.convert(val)
@@ -24,15 +26,22 @@ class Option:
     def get(self):
         return self._val
 
+    @staticmethod
+    def convert(val):
+        return val
+
 
 class SortOption(Option):
 
     name = 'sort'
-
-    @staticmethod
-    def default():
-        return next(iter(sort_funcs.values()))
+    default = staticmethod(next(iter(sort_funcs.values())))
 
     @staticmethod
     def convert(val):
         return val if callable(val) else sort_funcs[val]
+
+
+class ColumnsOption(Option):
+
+    name = 'columns'
+    default = ['mode', 'size']

@@ -1,7 +1,6 @@
 # -*- coding: future_fstrings -*-
 import getpass
 import os
-from pathlib import Path
 import platform
 from stat import S_ISDIR
 
@@ -14,12 +13,13 @@ from .history import History
 from .option import Options
 from .panel import LeftPanel, MainPanel, RightPanel
 from .util import logger, stat_path
-from .view import Views
+from .view import Views, DirectoryView
 
 HOST = platform.node()
 USER = getpass.getuser()
 
 
+# TODO Rename to session
 class State:
 
     def __init__(self, vim):
@@ -48,7 +48,6 @@ class Plugin:
     def func_nvfm_startup(self, args): # pylint:disable=unused-argument
         self._state = State(self._vim)
         self._state.events.manage(self)
-        self.go_to(Path(os.environ.get('NVFM_START_PATH', os.getcwd())))
 
     @pynvim.function('NvfmEnter', sync=True)
     def func_nvfm_enter(self, args):
@@ -57,18 +56,19 @@ class Plugin:
         Enter the directory indicated by args[0]. If args[0] is None, use
         currently selected item. If args[1] is True, resolve symlinks.
         """
+        main_view = self._state.main_panel.view
         # TODO Is there support for default args?
         what = args[0] if args else None
         resolve_symlinks = args[1] if len(args) >= 2 else False
         if what is None:
-            target = self._state.main_panel.view.focused_item
+            target = main_view.focused_item
             if target is None:
                 return
         elif what == '..':
             # '..' in paths isn't collapsed automatically
-            target = self._state.main_panel.view.path.parent
+            target = main_view.path.parent
         else:
-            target = self._state.main_panel.view.path / what
+            target = main_view.path / what
         stat_res, stat_error = stat_path(target, lstat=False)
         if (stat_error is not None) or not S_ISDIR(stat_res.st_mode):
             self.launch(target)
@@ -124,6 +124,10 @@ class Plugin:
     # If sync=True,the syntax highlighting is not applied
     @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')
     def cursor_moved(self, win_id):
+        # pylint:disable=unidiomatic-typecheck
+        if type(self._state.main_panel.view) is not DirectoryView:
+            # TODO Refactor
+            return
         # TODO Error when moving around .dotfiles/LS_COLORS
         self._state.events.publish(
             Event('cursor_moved', Global), self._state.wins[win_id])
