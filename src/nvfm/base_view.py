@@ -1,7 +1,8 @@
+from .event import EventEmitter
 from .util import logger
 
 
-class View:
+class View(EventEmitter):
 
     VIEW_PREFIX = 'nvfm_view:'
     cursor = None
@@ -13,7 +14,8 @@ class View:
         self.path = path
         self.buf = self._create_buf()
         self._buf_configured = False
-        self.dirty = True
+        self.dirty = 2
+        self._s.events.manage(self, register_handlers=False)
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)
@@ -25,7 +27,17 @@ class View:
             False, # scratch
         )
 
+    def protocol_init(self):
+        if self.dirty >= 2:
+            logger.debug('view:init:%s', self)
+            self.init()
+            self.dirty = 1
+
+    def init(self):
+        pass
+
     def configure_buf(self):
+        # XXX Still required?
         if self._buf_configured:
             return
         buf = self.buf
@@ -39,16 +51,16 @@ class View:
     def configure_win(self, win):
         pass
 
-    def load(self):
-        """Load the view. Redraw if it's dirty."""
-        if self.dirty:
+    def protocol_draw(self):
+        if self.dirty >= 1:
+            logger.debug('view:draw:%s buf=%s', self, self.buf)
             self.draw()
-            self.dirty = False
-
-    def unload(self):
-        pass
+            self.dirty = 0
 
     def draw(self):
+        pass
+
+    def unload(self):
         pass
 
     def draw_message(self, msg, hl_group=None):

@@ -25,19 +25,22 @@ class Panel(EventEmitter):
 
     @view.setter
     def view(self, view):
+        """Load `view` into this panel."""
         if self._view is view:
             return
         self._view.unload()
         self._view = view
+        view.protocol_init()
         self.win.request('nvim_win_set_buf', view.buf)
         view.configure_buf()
-        view.load()
         view.configure_win(self.win)
+        view.protocol_draw()
         self.emit('view_loaded', self.view)
         self.update_vim_cursor()
 
     def reload_view(self):
-        self.view.load()
+        self.view.protocol_init()
+        self.view.protocol_draw()
         self.update_vim_cursor()
 
     def update_vim_cursor(self):
@@ -71,16 +74,15 @@ class MainPanel(Panel):
 class LeftPanel(Panel):
 
     @MainPanel.on('view_loaded')
-    def _main_view_loaded(self, view):
+    def _main_view_loaded(self, main_view):
         """A view was loaded in the main panel. Preview its parent."""
-        path = view.path
-        if path == Path('/'):
+        main_path = main_view.path
+        if main_path == Path('/'):
             self.view = self._s.views[None]
         else:
-            self.view = self._s.views[path.parent]
-            self.view.focused_item = path
-            # TODO Work with cursor_adjusted event
-            self.update_vim_cursor()
+            view = self._s.views[main_path.parent]
+            view.focused_item = main_path
+            self.view = view
 
 
 class RightPanel(Panel):

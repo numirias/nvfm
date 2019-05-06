@@ -23,7 +23,7 @@ class Event:
         return func
 
 
-# XXX Is an EventEmitter class needed?
+# TODO Separate EventEmitter and EventHandler
 class EventEmitter:
 
     _event_manager = None
@@ -71,12 +71,14 @@ class EventManager:
             logger.debug(('event:fire', name, handler.__name__, args, kwargs))
             handler(*args, **kwargs)
 
-    def manage(self, obj):
+    def manage(self, obj, register_handlers=True):
         """Manage the events of `obj`.
 
         To use event handlers and emit events, an object must be managed.
         """
         obj._event_manager = self
+        if not register_handlers:
+            return
         # Find all event handlers on `obj` and register them
         for func in (getattr(obj, x) for x in dir(obj)):
             if not callable(func) or getattr(func, '_event', None) is None:

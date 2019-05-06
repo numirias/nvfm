@@ -27,6 +27,7 @@ class Views:
         except KeyError:
             pass
         view = make_view(self._s, self._vim, key)
+        view.protocol_init()
         self._views[key] = view
         return view
 
@@ -42,7 +43,7 @@ class Views:
 
     def mark_all_dirty(self):
         for view in self._views.values():
-            view.dirty = True
+            view.dirty = 2
 
 
 def make_view(session, vim, item):

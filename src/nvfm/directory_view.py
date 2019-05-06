@@ -8,14 +8,13 @@ import stat
 from stat import S_ISDIR, S_ISLNK
 
 from .base_view import View
-from .event import EventEmitter
 from .util import logger
 
 USERS = {u.pw_uid: u.pw_name for u in pwd.getpwall()}
 GROUPS = {g.gr_gid: g.gr_name for g in grp.getgrall()}
 
 
-class DirectoryView(View, EventEmitter):
+class DirectoryView(View):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -25,7 +24,7 @@ class DirectoryView(View, EventEmitter):
         # List of items in directory (of os.DirEntry, not pathlib.Path)
         self.items = None
         self._folds = None
-        self._s.events.manage(self)
+        self._error = None
 
     def configure_win(self, win):
         if self.items:
@@ -34,27 +33,30 @@ class DirectoryView(View, EventEmitter):
     def unload(self):
         self.clear_filter()
 
-    def draw(self):
-        # Only save and restore focus if it has been explicitly set
-        restore_focus = self.focus is not None
-        if restore_focus:
-            focused_item = self.focused_item
-        self._draw()
-        if restore_focus:
-            self.focused_item = focused_item
-
-    def _draw(self):
+    def init(self):
         try:
+            # Only save and restore focus if it has been explicitly set
+            restore_focus = self.focus is not None
+            if restore_focus:
+                focused_item = self.focused_item
             self.items = self._list_files(
                 self.path, self._s.options['sort'].value)
+            if restore_focus:
+                self.focused_item = focused_item
         except OSError as e:
             self.items = []
-            self.draw_message(str(e), 'Error')
-            return
-        if not self.items:
+            self._error = e
+
+    def draw(self):
+        self._draw()
+
+    def _draw(self):
+        if self._error:
+            self.draw_message(str(self._error), 'Error')
+        elif not self.items:
             self.draw_message('(directory empty)')
-            return
-        self._render_items()
+        else:
+            self._render_items()
 
     @property
     def cursor(self):
