@@ -102,7 +102,7 @@ def test_navigate_to_root(tree, vim_ctx):
         assert re.match(r'\(.*nothing.*\)', '\n'.join(left.buffer[:]))
 
 
-def test_format_line_extra(tree):
+def test_format_line(tree):
     """If a dir has only one child, show the child in the dir view"""
     path = tree / 'aa1'
     stat_res, stat_error = stat_path(path)
@@ -110,19 +110,12 @@ def test_format_line_extra(tree):
     assert 'aa1/aa2/aa3' in line
 
 
-def test_format_line_extra2(tree):
+def test_format_line_num_files(tree):
     """Display number of items in a directory"""
-    path = tree / 'ee'
+    path = tree / 'ee/gg'
     stat_res, stat_error = stat_path(path)
-    line, hls = format_line(str(path), stat_res, 'some_hl_group', '', lambda x: '')
-    assert 'ee/ +3' in line
-
-
-def test_format_line_extra3(tree):
-    path = tree / 'cc'
-    stat_res, stat_error = stat_path(path)
-    line, hls = format_line(str(path), stat_res, 'some_hl_group', '', lambda x: '')
-    assert 'cc/ +0' in line
+    line, hls = format_line(str(path), stat_res, 'some_hl_group', '{size}', lambda x: '')
+    assert line.startswith('6 ')
 
 
 def test_history():

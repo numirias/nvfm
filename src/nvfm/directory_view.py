@@ -195,16 +195,25 @@ class DirectoryView(View):
 def format_line(path_str, stat_res, hl_group, template, format_time):
     # TODO Orphaned symlink
     mode = stat_res.st_mode
-    meta = format_meta(stat_res, template, format_time, format_size)
-    line = meta + ' '
     hls = []
     extra = None
     name = Path(path_str).name
     if S_ISDIR(mode):
         name += '/'
-        extra = format_dir_extra(mode, path_str)
-    elif S_ISLNK(mode):
-        extra = format_link_extra(path_str)
+        try:
+            num_files = len(os.listdir(path_str))
+        except OSError:
+            size_str = '?'
+        else:
+            size_str = str(num_files)
+            if num_files == 1:
+                extra = format_dir_extra(mode, path_str)
+    else:
+        size_str = format_size(stat_res.st_size)
+        if S_ISLNK(mode):
+            extra = format_link_extra(path_str)
+    meta = format_meta(stat_res, template, format_time, size_str)
+    line = meta + ' '
     if hl_group is not None:
         hls.append((hl_group, len(line), len(line) + len(name)))
     line += name
@@ -214,11 +223,10 @@ def format_line(path_str, stat_res, hl_group, template, format_time):
     hls.append(('FileMeta', 0, len(meta)))
     return line, hls
 
-def format_meta(stat_res, template, format_time, format_size):
-    # TODO Date format by option
+def format_meta(stat_res, template, format_time, size_str):
     return template.format(
         mode=stat.filemode(stat_res.st_mode),
-        size=format_size(stat_res.st_size),
+        size=size_str,
         atime=format_time(stat_res.st_atime),
         ctime=format_time(stat_res.st_ctime),
         mtime=format_time(stat_res.st_mtime),
@@ -240,14 +248,12 @@ def format_dir_extra(mode, path_str):
         try:
             first = next(items)
         except StopIteration:
-            extra += ' +0'
             break
         try:
             next(items)
         except StopIteration:
             pass
         else:
-            extra += ' +' + str(2 + sum(1 for _ in items))
             break
         path_str = os.path.join(path_str, first.name)
         try:
