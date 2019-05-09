@@ -123,7 +123,6 @@ class DirectoryView(View):
         """Render directory listing."""
         lines = []
         hls = []
-        template = self._s.options['columns'].template
         for linenum, item in enumerate(self.items):
             try:
                 stat_res = item.stat(follow_symlinks=False)
@@ -134,7 +133,8 @@ class DirectoryView(View):
                     item.path,
                     stat_res,
                     self._s.colors.file_hl_group(item, stat_res),
-                    template,
+                    self._s.options['columns'].template,
+                    self._s.options['time_format'].value,
                 )
                 for hl in line_hls:
                     hls.append((linenum, *hl))
@@ -192,7 +192,7 @@ class DirectoryView(View):
             self._folds = None
 
 
-def format_line(path_str, stat_res, hl_group, template):
+def format_line(path_str, stat_res, hl_group, template, format_time):
     # TODO Orphaned symlink
     mode = stat_res.st_mode
     meta = format_meta(stat_res, template, format_time, format_size)
@@ -263,32 +263,6 @@ def format_link_extra(path_str):
     except OSError:
         target = '?'
     return ' -> ' + target
-
-def format_time(time):
-    from datetime import datetime
-    now = datetime.now()
-    then = datetime.fromtimestamp(time)
-    diff = now - then
-    second_diff = diff.seconds
-    day_diff = diff.days
-
-    if day_diff < 0:
-        return ''
-
-    if day_diff == 0:
-        if second_diff < 10:
-            return 'now'
-        if second_diff < 60:
-            return '%is ago' % second_diff
-        if second_diff < 3600:
-            return '%im ago' % (second_diff // 60)
-        if second_diff < 86400:
-            return '%ih ago' % (second_diff // 3600)
-    if day_diff < 30:
-        return '%id ago' % day_diff
-    if now.year == then.year:
-        return then.strftime('%d %b')
-    return then.strftime('%b %Y')
 
 def format_size(bytes):
     if not bytes:

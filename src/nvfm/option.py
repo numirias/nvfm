@@ -1,3 +1,6 @@
+from datetime import datetime
+from functools import partial
+
 from .config import sort_funcs
 
 
@@ -76,12 +79,58 @@ class ColumnsOption(Option):
         formatters = {
             'mode': '{mode}',
             'size': '{size:>7}',
-            'atime': '{atime:>9}',
-            'ctime': '{ctime:>9}',
-            'mtime': '{mtime:>9}',
+            'atime': ' {atime}',
+            'ctime': ' {ctime}',
+            'mtime': ' {mtime}',
             'ino': '{ino}',
             'nlink': '{nlink}',
             'user': ' {uid:>5.5s}',
             'group': ' {gid:>5.5s}',
         }
         self.template = ''.join([formatters[c] for c in self.value])
+
+
+class TimeFormat(Option):
+
+    key = 'time_format'
+    default = 'ago'
+
+    @classmethod
+    def convert(cls, val):
+        if not isinstance(val, str):
+            raise ValueError('Invalid value for option "time_format"')
+        if val == 'ago':
+            return cls.format_ago
+        return partial(cls.format_strftime, format=val or '%Y-%m-%d %H:%m')
+
+    @classmethod
+    def format_ago(cls, time):
+        s = cls._format_ago_str(time)
+        return s.rjust(8)
+
+    @staticmethod
+    def _format_ago_str(time):
+        # TODO Don't calculate "now" here
+        now = datetime.now()
+        then = datetime.fromtimestamp(time)
+        diff = now - then
+        second_diff = diff.seconds
+        day_diff = diff.days
+        if day_diff == 0:
+            if second_diff < 10:
+                return 'now'
+            if second_diff < 60:
+                return '%is ago' % second_diff
+            if second_diff < 3600:
+                return '%im ago' % (second_diff // 60)
+            if second_diff < 86400:
+                return '%ih ago' % (second_diff // 3600)
+        if 0 < day_diff < 30:
+            return '%id ago' % day_diff
+        if now.year == then.year:
+            return then.strftime('%d %b')
+        return then.strftime('%b %Y')
+
+    @staticmethod
+    def format_strftime(time, format):
+        return datetime.fromtimestamp(time).strftime(format)

@@ -85,6 +85,10 @@ noremap <silent>sT :call NvfmSet('sort', 'last_modified_reverse') \| call NvfmRe
 noremap <silent>ss :call NvfmSet('sort', 'size') \| call NvfmRefresh()<CR>
 noremap <silent>sS :call NvfmSet('sort', 'size_reverse') \| call NvfmRefresh()<CR>
 
+noremap <silent>Fa :call NvfmSet('time_format', 'ago') \| call NvfmRefresh()<CR>
+noremap <silent>Ft :call NvfmSet('time_format', '%Y-%m-%d %H:%m') \| call NvfmRefresh()<CR>
+noremap <silent>Fl :call NvfmSet('time_format', '%c') \| call NvfmRefresh()<CR>
+
 noremap <silent>/ :call NvfmFilterInput()<CR>
 noremap <silent>f :call NvfmFilterInput()<CR>
 " Eliminate all folds
