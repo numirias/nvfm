@@ -224,8 +224,8 @@ def format_meta(stat_res, template, format_time, format_size):
         mtime=format_time(stat_res.st_mtime),
         ino=stat_res.st_ino,
         nlink=stat_res.st_nlink,
-        uid=USERS.get(stat_res.st_uid, stat_res.st_uid),
-        gid=GROUPS.get(stat_res.st_gid, stat_res.st_gid),
+        uid=USERS.get(stat_res.st_uid, str(stat_res.st_uid)),
+        gid=GROUPS.get(stat_res.st_gid, str(stat_res.st_gid)),
     )
 
 def format_dir_extra(mode, path_str):
