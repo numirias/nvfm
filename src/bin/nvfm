@@ -15,7 +15,7 @@ export NVFM_CMD_FILE=$cmd_file
 if [[ $NVFM_RUN_FROM_SOURCE == 1 ]]; then
     NVIM_RPLUGIN_MANIFEST=/dev/null \
         NVFM_RUNTIME=$HERE/../nvfm/runtime/ \
-        nvim -u /dev/null --cmd 'let &rtp .= "," . $NVFM_RUNTIME' $@
+        nvim -u /dev/null --cmd 'let &rtp .= "," . $NVFM_RUNTIME . "," . $NVFM_RUNTIME . "fzf"' $@
 else
     NVIM_RPLUGIN_MANIFEST=/dev/null \
         nvim -u /dev/null --cmd "py3 from nvfm.util import runtime_path" \

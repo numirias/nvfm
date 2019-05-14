@@ -1,6 +1,7 @@
 # -*- coding: future_fstrings -*-
 import getpass
 import os
+from pathlib import Path
 import platform
 from stat import S_ISDIR
 
@@ -33,6 +34,10 @@ class Session:
         self.options = Options()
         self.history = History()
         self.colors = ColorManager(vim)
+
+    @property
+    def cwd(self):
+        return self.main_panel.view.path
 
 
 @pynvim.plugin
@@ -79,8 +84,12 @@ class Plugin:
 
     def go_to(self, path):
         """The user enters `target`."""
-        logger.debug(('enter', path))
+        if not path.absolute():
+            path = self._s.cwd / Path(path)
+        logger.debug('enter %r', path)
         self._s.main_panel.view = self._s.views[path]
+        # TODO Escape
+        self._vim.command('cd ' + str(path))
 
     @pynvim.function('NvfmHistory', sync=True)
     def func_nvfm_history(self, args):
@@ -133,6 +142,20 @@ class Plugin:
         # TODO Do tabline/statusline update elsewhere, e.g. on focus_changed
         self._update_tabline()
         self._update_status_main()
+
+    @pynvim.autocmd('BufWinEnter', sync=True, eval='win_getid()')
+    def buf_win_enter(self, win_id):
+        # This autocmd works around the problem that opening a terminal in the
+        # main panel (e.g. when FZF is launched), some window properties get
+        # reset. So we restore them here.
+        # TODO Add test
+        if self._s is None:
+            return
+        if self._s.wins[win_id] != self._s.main_panel.win:
+            return
+        logger.debug('bufwinenter %s', win_id)
+        main_panel = self._s.main_panel
+        main_panel.view.configure_win(main_panel.win)
 
     @MainPanel.on('view_loaded')
     def add_history(self, view):

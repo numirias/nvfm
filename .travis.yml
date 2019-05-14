@@ -12,10 +12,17 @@ jobs:
 before_install:
   - wget -O nvim https://github.com/neovim/neovim/releases/download/nightly/nvim.appimage
   - chmod +x nvim
+  - git clone https://github.com/junegunn/fzf/
+  - fzf/install --bin
+  - sudo ln -s $PWD/fzf/bin/fzf /usr/bin
+  - wget https://github.com/sharkdp/fd/releases/download/v7.3.0/fd_7.3.0_amd64.deb
+  - sudo dpkg -i fd_7.3.0_amd64.deb
   - export PATH="$PATH:."
 install:
   - pip3 install tox-travis codecov future-fstrings 
 script:
   - nvim --version
+  - fzf --version
+  - fd --version
   - tox
   - codecov

@@ -18,6 +18,14 @@ set foldenable
 set foldminlines=0
 set foldtext=Foldtext()
 
+function Foldtext()
+    return '(+' . (v:foldend - v:foldstart + 1) . ') '
+endfunction
+
+" Reset any FZF configuration via environment vars
+let $FZF_DEFAULT_COMMAND=''
+let $FZF_DEFAULT_OPTS=''
+
 
 hi CursorLine ctermbg=236 cterm=none
 hi Cursor          ctermfg=red  ctermbg=red
@@ -33,7 +41,6 @@ hi TabLineCurrent ctermfg=white ctermbg=236 cterm=bold
 " hi TabLine ctermfg=252 ctermbg=236 cterm=none
 "
 hi SelectedEntry ctermfg=none ctermbg=236
-
 
 hi StatusLine      ctermfg=white ctermbg=236 cterm=none
 hi StatusLineNC    ctermfg=white ctermbg=236 cterm=none
@@ -90,15 +97,26 @@ noremap <silent>Ft :call NvfmSet('time_format', '%Y-%m-%d %H:%m') \| call NvfmRe
 noremap <silent>Fl :call NvfmSet('time_format', '%c') \| call NvfmRefresh()<CR>
 
 noremap <silent>/ :call NvfmFilterInput()<CR>
-noremap <silent>f :call NvfmFilterInput()<CR>
 " Eliminate all folds
 noremap <silent><ESC> :call NvfmFilter(v:null)<CR>
 
+noremap <silent>ff :call NvfmFind()<CR>
+noremap <silent><C-f> :call NvfmFind()<CR>
+noremap <silent>fF :call NvfmFind('--hidden --no-ignore')<CR>
+noremap <silent>fd :call NvfmFind('--type directory')<CR>
+noremap <silent><C-g> :call NvfmFind('--type directory')<CR>
+noremap <silent>fD :call NvfmFind('--type directory --hidden --no-ignore')<CR>
 
-function Foldtext()
-    return '(+' . (v:foldend - v:foldstart + 1) . ') '
+function NvfmFind(...)
+    if !executable('fzf')
+      throw 'No "fzf" executable found. You need to install fzf (https://github.com/junegunn/fzf/) to use this feature.'
+    endif
+    if !executable('fd')
+      throw 'No "fd" executable found. You need to install fd (https://github.com/sharkdp/fd) to use this feature.'
+    endif
+    let fd_args = get(a:, 1, '')
+    call fzf#run({'options': '--bind ctrl-l:accept --ansi --color fg:231,bg:-1,hl:197,hl+:197,pointer:197,info:246,bg+:236', 'window': 'enew', 'sink': function('NvfmEnter'), 'source': 'fd --follow --color always ' . fd_args})
 endfunction
-
 
 function NvfmFilterInput()
     let l:input = input('find> ', '')
@@ -108,12 +126,6 @@ function NvfmFilterInput()
         call NvfmFilter(v:null)
     endif
 endfunction
-
-
-let g:statusline1 = 'a'
-let g:statusline2 = 'b'
-let g:statusline3 = 'c'
-
 
 function Startup()
     vsplit
@@ -127,7 +139,9 @@ function Startup()
 endfunction
 
 au VimEnter * call Startup()
-
 au VimResized * wincmd =
-
 au CmdlineChanged @ call NvfmFilter(getcmdline())
+
+let g:statusline1 = 'a'
+let g:statusline2 = 'b'
+let g:statusline3 = 'c'

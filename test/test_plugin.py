@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import re
 
+import pynvim
 import pytest
 
 from nvfm.directory_view import format_line
@@ -240,20 +241,20 @@ def test_filter(tree, vim_ctx):
             vim.command('folddoopen call add(g:openfolds, line("."))')
             return vim.vars['openfolds']
         left, mid, right = vim.windows
-        vim.feedkeys('fx') # filter for "x" but don't confirm yet
+        vim.feedkeys('/x') # filter for "x" but don't confirm yet
         assert 'qqq' in right.buffer[:][0]
         vim.feedkeys('\n') # confirm filter
         assert mid.cursor[0] == 2 # assert that cursor has jumped to first result
         assert openfolds() == [2, 4, 5]
-        vim.feedkeys('fxx\n') # search for "xx"
+        vim.feedkeys('/xx\n') # search for "xx"
         assert openfolds() == [2, 5]
         vim.feedkeys('\x1b') # clear search with esc
         assert openfolds() == list(range(1, 7))
-        vim.feedkeys('fx\n') # search for "x"
+        vim.feedkeys('/x\n') # search for "x"
         assert openfolds() == [2, 4, 5]
         vim.feedkeys('hl') # go to previous dir and back
         assert openfolds() == list(range(1, 7)) # assert that search is cleared
-        vim.feedkeys('ffail\n') # search for "fail"
+        vim.feedkeys('/fail\n') # search for "fail"
         assert openfolds() == []
 
 
@@ -283,3 +284,47 @@ def test_time_format_option(tree, vim_ctx):
     with vim_ctx() as vim:
         left, mid, right = vim.windows
         assert re.match(r'.*\snow\s.*', mid.buffer[0])
+
+
+def test_fzf(tree, vim_ctx):
+    import time
+    os.environ['NVFM_START_PATH'] = str(tree)
+    with vim_ctx() as vim:
+        left, mid, right = vim.windows
+        assert vim.call('exists', ':FZF')
+        vim.feedkeys('ff') # start FZF fuzzy search
+        assert 'ee/gg/aa' in '\n'.join(mid.buffer[:])
+        vim.feedkeys('bbxq') # enter search term
+        # block until search term is processed
+        t = time.time()
+        while time.time() < t + 1:
+            if 'bbxq' in mid.buffer[-1]:
+                break
+            time.sleep(.01)
+        else:
+            raise AssertionError('timeout: feedkeys')
+        vim.call('nvim_input', 'bbxq<CR>') # confirm search term
+        # block until terminal window is closed
+        t = time.time()
+        while time.time() < t + 1:
+            try:
+                if not mid.buffer[-1].startswith('>'):
+                    break
+            except pynvim.NvimError:
+                pass
+            time.sleep(.01)
+        else:
+            raise AssertionError('timeout: leaving terminal')
+        # allow cwd change to take some time
+        while time.time() < t + 1:
+            try:
+                assert vim.call('getcwd').endswith('ee/gg/bbXXbb/qqq')
+            except AssertionError:
+                pass
+            except pynvim.NvimError:
+                pass
+            else:
+                break
+            time.sleep(.01)
+        else:
+            raise AssertionError('cwd not changed')
