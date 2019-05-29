@@ -131,11 +131,15 @@ class FileView(View):
         self._detect_filetype()
 
     def _detect_filetype(self):
-        cur = self._vim.current
-        buf_save = cur.buffer
-        cur.buffer = self.buf
-        self._vim.command('filetype detect')
-        cur.buffer = buf_save
+        for panel in self._s.panels:
+            if panel.view is self:
+                break
+        else:
+            return
+        win_save = self._vim.current.window
+        self._vim.current.window = panel.win
+        self._vim.command('silent! filetype detect')
+        self._vim.current.window = win_save
 
     @staticmethod
     def _read_file(path):

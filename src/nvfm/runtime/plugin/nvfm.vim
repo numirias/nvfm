@@ -8,6 +8,7 @@ set bufhidden=hide
 " TODO Necessary?
 set viminfo="NONE"
 set shada="NONE"
+set noshowmode
 " Don't highlight matching brackets
 NoMatchParen
 
@@ -130,7 +131,7 @@ endfunction
 function Startup()
     vsplit
     vsplit
-    exec 2 . "wincmd w"
+    exec 2 . 'wincmd w'
 
     " TODO Rename
     call NvfmStartup()

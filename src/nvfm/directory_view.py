@@ -153,7 +153,6 @@ class DirectoryView(View):
             # TODO We can skip colorNormal
             # TODO don't hardcode horizontal hl offset
             # TODO Bulk
-            logger.debug(('add_highlight', hl_group, linenum))
             self.buf.add_highlight(hl_group, linenum, start, stop, src_id=-1)
 
     def filter(self, func, query):

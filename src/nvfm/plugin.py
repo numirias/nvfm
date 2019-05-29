@@ -34,6 +34,10 @@ class Session:
         self.options = Options()
         self.history = History()
         self.colors = ColorManager(vim)
+        try:
+            self.cmd_path = Path(os.environ['NVFM_TMP']) / 'cmd'
+        except KeyError:
+            raise Exception('"NVFM_TMP" needs to be set in the environment.')
 
     @property
     def cwd(self):
@@ -129,12 +133,16 @@ class Plugin:
         self._vim.command('redraw')
 
     # TODO eval cursor position to avoid RPC roundtrip?
-    # If sync=True,the syntax highlighting is not applied
+    # TODO Did I mean sync=False?
+    # If sync=True, the syntax highlighting is not applied
     @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')
     def cursor_moved(self, win_id):
         # pylint:disable=unidiomatic-typecheck
         if type(self._s.main_panel.view) is not DirectoryView:
             # TODO Refactor
+            return
+        # TODO Refactor
+        if self._s.main_panel.win.buffer.name.startswith('term:'):
             return
         # TODO Error when moving around .dotfiles/LS_COLORS
         self._s.events.publish(
@@ -163,8 +171,9 @@ class Plugin:
 
     def launch(self, target):
         # TODO Proper application launcher implementation
-        with open(os.environ.get('NVFM_CMD_FILE'), 'w') as f:
+        with open(self._s.cmd_path, 'w') as f:
             f.write('$EDITOR ' + str(target))
+        # Suspend vim, so the bash wrapper can take over and launch the editor
         self._vim.command('suspend!')
 
     def _update_tabline(self):
