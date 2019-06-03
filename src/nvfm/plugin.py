@@ -132,11 +132,21 @@ class Plugin:
         # Required because the screen isn't redrawn during user input
         self._vim.command('redraw')
 
+    @pynvim.function('NvfmJob', sync=True)
+    def func_nvfm_job(self, args):
+        buf = self._vim.request(
+            'nvim_create_buf',
+            True, # listed
+            False, # scratch
+        )
+        buf.name = 'nvfm:jobs'
+        logger.debug('created buf %s', buf.handle)
+        self._vim.command('tabnew nvfm:jobs')
+
     # TODO eval cursor position to avoid RPC roundtrip?
-    # TODO Did I mean sync=False?
-    # If sync=True, the syntax highlighting is not applied
     @pynvim.autocmd('CursorMoved', sync=True, eval='win_getid()')
     def cursor_moved(self, win_id):
+        # TODO Error when moving around .dotfiles/LS_COLORS
         # pylint:disable=unidiomatic-typecheck
         if type(self._s.main_panel.view) is not DirectoryView:
             # TODO Refactor
@@ -144,11 +154,11 @@ class Plugin:
         # TODO Refactor
         if self._s.main_panel.win.buffer.name.startswith('term:'):
             return
-        # TODO Error when moving around .dotfiles/LS_COLORS
-        self._s.events.publish(
-            Event('cursor_moved', Global), self._s.wins[win_id])
+        if win_id in self._s.wins:
+            self._s.events.publish(
+                Event('cursor_moved', Global), self._s.wins[win_id])
         # TODO Do tabline/statusline update elsewhere, e.g. on focus_changed
-        self._update_tabline()
+        # self._update_tabline()
         self._update_status_main()
 
     @pynvim.autocmd('BufWinEnter', sync=True, eval='win_getid()')
@@ -159,7 +169,7 @@ class Plugin:
         # TODO Add test
         if self._s is None:
             return
-        if self._s.wins[win_id] != self._s.main_panel.win:
+        if self._s.wins.get(win_id) != self._s.main_panel.win:
             return
         logger.debug('bufwinenter %s', win_id)
         main_panel = self._s.main_panel

@@ -4,7 +4,7 @@ from .util import logger
 
 class View(EventEmitter):
 
-    VIEW_PREFIX = 'nvfm_view:'
+    VIEW_PREFIX = 'nvfm:view:'
     cursor = None
 
     def __init__(self, session, vim, path):

@@ -108,6 +108,14 @@ noremap <silent>fd :call NvfmFind('--type directory')<CR>
 noremap <silent><C-g> :call NvfmFind('--type directory')<CR>
 noremap <silent>fD :call NvfmFind('--type directory --hidden --no-ignore')<CR>
 
+" noremap <silent>r :call NvfmJob('mv -i {} ' . input('new name: '))<CR>
+noremap <silent>r :call NvfmJob('mv -i {} ')<CR>
+
+noremap <silent><C-t> :tabnew<CR>
+noremap <silent><C-w> :tabclose<CR>
+noremap <silent><C-tab> :tabnext<CR>
+noremap <silent><C-S-tab> :tabprev<CR>
+
 function NvfmFind(...)
     if !executable('fzf')
       throw 'No "fzf" executable found. You need to install fzf (https://github.com/junegunn/fzf/) to use this feature.'
@@ -141,7 +149,7 @@ endfunction
 
 au VimEnter * call Startup()
 au VimResized * wincmd =
-au CmdlineChanged @ call NvfmFilter(getcmdline())
+" au CmdlineChanged @ call NvfmFilter(getcmdline())
 
 let g:statusline1 = 'a'
 let g:statusline2 = 'b'
